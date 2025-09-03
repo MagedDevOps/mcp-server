@@ -23,37 +23,528 @@ app.use(express.json());
 
 // Create MCP server
 const server = new McpServer({ 
-  name: "MyTestMCP", 
+  name: "AlSalamHospitalMCP", 
   version: "1.0.0" 
 });
 
-// Add hello_world tool
+// Hospital Management APIs
 server.registerTool(
-  "hello_world",
+  "get_all_hospitals",
   {
-    description: "Say hello to someone",
+    description: "Get all hospitals with language support",
     inputSchema: {
-      name: z.string().describe("Name of the person to greet"),
+      lang: z.string().optional().describe("Language code (default: E)"),
     },
   },
-  async ({ name }) => ({
-    content: [{ type: "text", text: `Hello, ${name}!` }],
-  })
+  async ({ lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/hospitals?lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
 );
 
-// Add math_add tool
 server.registerTool(
-  "math_add",
+  "get_specialties_by_hospital",
   {
-    description: "Add two numbers together",
+    description: "Get specialties for a specific hospital",
     inputSchema: {
-      a: z.number().describe("First number"),
-      b: z.number().describe("Second number"),
+      hospitalId: z.string().describe("Hospital ID"),
+      lang: z.string().optional().describe("Language code (default: E)"),
     },
   },
-  async ({ a, b }) => ({
-    content: [{ type: "text", text: String(a + b) }],
-  })
+  async ({ hospitalId, lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/specialties/${hospitalId}?lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "get_doctors_by_hospital_specialty",
+  {
+    description: "Get doctors for a specific hospital and specialty",
+    inputSchema: {
+      hospitalId: z.string().describe("Hospital ID"),
+      specialtyId: z.string().describe("Specialty ID"),
+      lang: z.string().optional().describe("Language code (default: E)"),
+    },
+  },
+  async ({ hospitalId, specialtyId, lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/doctors/${hospitalId}/${specialtyId}?lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "search_all_combined",
+  {
+    description: "Search across all categories (hospitals, specialties, doctors) with a single term",
+    inputSchema: {
+      term: z.string().describe("Search term"),
+      lang: z.string().optional().describe("Language code (default: E)"),
+    },
+  },
+  async ({ term, lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/search/all?term=${encodeURIComponent(term)}&lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "search_individual_category",
+  {
+    description: "Search within individual categories",
+    inputSchema: {
+      term: z.string().describe("Search term"),
+      lang: z.string().optional().describe("Language code (default: E)"),
+    },
+  },
+  async ({ term, lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(term)}&lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// OTP APIs
+server.registerTool(
+  "generate_otp",
+  {
+    description: "Generate OTP for mobile number",
+    inputSchema: {
+      mobile: z.string().describe("Mobile number"),
+      source: z.string().optional().describe("Source of request (default: WhatsApp)"),
+    },
+  },
+  async ({ mobile, source = "WhatsApp" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(mobile)}&source=${encodeURIComponent(source)}`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "verify_otp",
+  {
+    description: "Verify OTP for mobile number",
+    inputSchema: {
+      mobile: z.string().describe("Mobile number"),
+      otp: z.string().describe("OTP code to verify"),
+      source: z.string().optional().describe("Source of request (default: WhatsApp)"),
+    },
+  },
+  async ({ mobile, otp, source = "WhatsApp" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(mobile)}&otp=${encodeURIComponent(otp)}&source=${encodeURIComponent(source)}`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Branches API
+server.registerTool(
+  "get_branches",
+  {
+    description: "Get all hospital branches",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/branches');
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Chatbot APIs
+server.registerTool(
+  "get_chatbot_info",
+  {
+    description: "Get chatbot information",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/chatbotinfo');
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "get_chatbot_menu",
+  {
+    description: "Get chatbot menu items",
+    inputSchema: {
+      lang: z.string().optional().describe("Language code (default: E)"),
+    },
+  },
+  async ({ lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/menu/0?lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Appointment APIs
+server.registerTool(
+  "get_appointments_count",
+  {
+    description: "Get appointments count for a specific date",
+    inputSchema: {
+      date: z.string().describe("Date in MM-DD-YYYY format (e.g., 08-25-2025)"),
+    },
+  },
+  async ({ date }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/msgcount?today=${date}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "get_appointment_messages",
+  {
+    description: "Get appointment messages to send",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/msg2send');
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "get_patient_pending_appointments",
+  {
+    description: "Get patient's pending appointments by phone number",
+    inputSchema: {
+      mobile: z.string().describe("Patient's mobile number (e.g., +96569020323)"),
+    },
+  },
+  async ({ mobile }) => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/byphone', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pat_mobile: mobile
+        })
+      });
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "confirm_cancel_appointment",
+  {
+    description: "Confirm or cancel an appointment",
+    inputSchema: {
+      appointmentId: z.string().describe("Appointment ID"),
+      response: z.string().describe("Response: 1 for confirm, 0 for cancel"),
+    },
+  },
+  async ({ appointmentId, response }) => {
+    try {
+      const response_data = await fetch(`https://salemapi.alsalamhosp.com:447/confcanc?id=${appointmentId}&response=${response}`, {
+        method: 'POST'
+      });
+      const data = await response_data.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Doctor APIs
+server.registerTool(
+  "get_doctor_schedule",
+  {
+    description: "Get doctor's schedule information",
+    inputSchema: {
+      empId: z.string().describe("Employee ID"),
+      hospId: z.string().describe("Hospital ID"),
+    },
+  },
+  async ({ empId, hospId }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doctor_schedule?EMP_ID=${empId}&HOSP_ID=${hospId}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "get_doctor_available_slots",
+  {
+    description: "Get doctor's next available appointment slots",
+    inputSchema: {
+      branchId: z.string().describe("Branch ID"),
+      docId: z.string().describe("Doctor ID"),
+      clinicId: z.string().describe("Clinic ID"),
+    },
+  },
+  async ({ branchId, docId, clinicId }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${clinicId}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Patient APIs
+server.registerTool(
+  "check_patient_whatsapp_status",
+  {
+    description: "Check if patient's mobile number is registered for WhatsApp",
+    inputSchema: {
+      mobile: z.string().describe("Patient's mobile number (e.g., +201552781085)"),
+    },
+  },
+  async ({ mobile }) => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/checkPatientWhatsApp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mobile: mobile
+        })
+      });
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "submit_appointment",
+  {
+    description: "Submit a new appointment booking",
+    inputSchema: {
+      servType: z.string().describe("Service type"),
+      branchId: z.string().describe("Branch ID"),
+      specId: z.string().describe("Specialty ID"),
+      docId: z.string().describe("Doctor ID"),
+      schedSerial: z.string().describe("Schedule serial number"),
+      shiftId: z.string().describe("Shift ID"),
+      dateDone: z.string().describe("Appointment date and time (MM/DD/YYYY HH:MM:SS)"),
+      expectedEndDate: z.string().describe("Expected end date and time (MM/DD/YYYY HH:MM:SS)"),
+      patTel: z.string().describe("Patient telephone number"),
+      telephoneCountryCode: z.string().describe("Telephone country code (e.g., +965)"),
+      patientId: z.string().describe("Patient ID"),
+      bufferStatus: z.string().optional().describe("Buffer status (default: 1)"),
+      init: z.string().optional().describe("Init value (default: 1)"),
+      computerName: z.string().optional().describe("Computer name (default: whatsapp)"),
+    },
+  },
+  async ({ 
+    servType, 
+    branchId, 
+    specId, 
+    docId, 
+    schedSerial, 
+    shiftId, 
+    dateDone, 
+    expectedEndDate, 
+    patTel, 
+    telephoneCountryCode, 
+    patientId,
+    bufferStatus = "1",
+    init = "1",
+    computerName = "whatsapp"
+  }) => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/submit_appointment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          SERV_TYPE: servType,
+          buffer_status: bufferStatus,
+          INIT: init,
+          COMPUTER_NAME: computerName,
+          BRANCH_ID: branchId,
+          SPEC_ID: specId,
+          DOC_ID: docId,
+          SCHED_SERIAL: schedSerial,
+          SHIFT_ID: shiftId,
+          dateDone: dateDone,
+          EXPECTED_END_DATE: expectedEndDate,
+          PAT_TEL: patTel,
+          TELEPHONE_COUNTRY_CODE: telephoneCountryCode,
+          PATIENT_ID: patientId
+        })
+      });
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Pricing API
+server.registerTool(
+  "get_packages_prices",
+  {
+    description: "Get pricing information for packages",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/packagesprices');
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
 );
 
 // Store transports by session ID
@@ -121,9 +612,44 @@ app.post('/messages', async (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy', 
-    server: 'MyTestMCP',
+    server: 'AlSalamHospitalMCP',
     version: '1.0.0',
-    tools: ['hello_world', 'math_add']
+    tools: [
+      // Hospital Management APIs
+      'get_all_hospitals',
+      'get_specialties_by_hospital', 
+      'get_doctors_by_hospital_specialty',
+      'search_all_combined',
+      'search_individual_category',
+      
+      // OTP APIs
+      'generate_otp',
+      'verify_otp',
+      
+      // Branches API
+      'get_branches',
+      
+      // Chatbot APIs
+      'get_chatbot_info',
+      'get_chatbot_menu',
+      
+      // Appointment APIs
+      'get_appointments_count',
+      'get_appointment_messages',
+      'get_patient_pending_appointments',
+      'confirm_cancel_appointment',
+      
+      // Doctor APIs
+      'get_doctor_schedule',
+      'get_doctor_available_slots',
+      
+      // Patient APIs
+      'check_patient_whatsapp_status',
+      'submit_appointment',
+      
+      // Pricing API
+      'get_packages_prices'
+    ]
   });
 });
 
@@ -154,3 +680,4 @@ process.on('SIGINT', async () => {
   console.log('✅ Server shutdown complete');
   process.exit(0);
 });
+
