@@ -293,26 +293,6 @@ server.registerTool(
   }
 );
 
-server.registerTool(
-  "get_appointment_messages",
-  {
-    description: "Get appointment messages to send",
-    inputSchema: {},
-  },
-  async () => {
-    try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/msg2send');
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
 server.registerTool(
   "get_patient_pending_appointments",
@@ -372,29 +352,6 @@ server.registerTool(
 );
 
 // Doctor APIs
-server.registerTool(
-  "get_doctor_schedule",
-  {
-    description: "Get doctor's schedule information",
-    inputSchema: {
-      empId: z.string().describe("Employee ID"),
-      hospId: z.string().describe("Hospital ID"),
-    },
-  },
-  async ({ empId, hospId }) => {
-    try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doctor_schedule?EMP_ID=${empId}&HOSP_ID=${hospId}`);
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
 server.registerTool(
   "get_doctor_available_slots",
@@ -635,12 +592,10 @@ app.get('/health', (req, res) => {
       
       // Appointment APIs
       'get_appointments_count',
-      'get_appointment_messages',
       'get_patient_pending_appointments',
       'confirm_cancel_appointment',
       
       // Doctor APIs
-      'get_doctor_schedule',
       'get_doctor_available_slots',
       
       // Patient APIs
