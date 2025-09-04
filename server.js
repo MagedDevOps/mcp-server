@@ -367,6 +367,34 @@ server.registerTool(
     try {
       const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${clinicId}`);
       const data = await response.json();
+      
+      // Process the response to include SCHED_SERIAL for each slot
+      if (data.available_slots || data.slots) {
+        const slots = data.available_slots || data.slots;
+        const processedSlots = slots.map((slot, index) => ({
+          ...slot,
+          sched_serial: slot.sched_serial || slot.slot_id || `slot_${index + 1}`,
+          slot_id: slot.slot_id || `slot_${index + 1}`,
+          date: slot.date || new Date().toISOString().split('T')[0],
+          time: slot.time || slot.appointment_time,
+          doctor_id: docId,
+          clinic_id: clinicId,
+          branch_id: branchId
+        }));
+        
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              available_slots: processedSlots,
+              doctor_id: docId,
+              clinic_id: clinicId,
+              branch_id: branchId
+            }, null, 2) 
+          }],
+        };
+      }
+      
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
@@ -421,11 +449,13 @@ server.registerTool(
       docId: z.string().describe("Doctor ID"),
       schedSerial: z.string().describe("Schedule serial number"),
       shiftId: z.string().describe("Shift ID"),
-      dateDone: z.string().describe("Appointment date and time (MM/DD/YYYY HH:MM:SS)"),
-      expectedEndDate: z.string().describe("Expected end date and time (MM/DD/YYYY HH:MM:SS)"),
+      dateDone: z.string().describe("Appointment date and time (DD/MM/YYYY HH:mm:ss)"),
+      expectedEndDate: z.string().describe("Expected end date and time (DD/MM/YYYY HH:mm:ss)"),
       patTel: z.string().describe("Patient telephone number"),
       telephoneCountryCode: z.string().describe("Telephone country code (e.g., +965)"),
-      patientId: z.string().describe("Patient ID"),
+      patientId: z.string().optional().describe("Patient ID (for registered patients)"),
+      patName: z.string().optional().describe("Patient full name (for non-registered patients)"),
+      gender: z.string().optional().describe("Patient gender (M/F)"),
       bufferStatus: z.string().optional().describe("Buffer status (default: 1)"),
       init: z.string().optional().describe("Init value (default: 1)"),
       computerName: z.string().optional().describe("Computer name (default: whatsapp)"),
@@ -443,36 +473,104 @@ server.registerTool(
     patTel, 
     telephoneCountryCode, 
     patientId,
+    patName,
+    gender,
     bufferStatus = "1",
     init = "1",
     computerName = "whatsapp"
   }) => {
     try {
+      // Prepare the appointment data
+      const appointmentData = {
+        SERV_TYPE: servType,
+        buffer_status: bufferStatus,
+        INIT: init,
+        COMPUTER_NAME: computerName,
+        BRANCH_ID: branchId,
+        SPEC_ID: specId,
+        DOC_ID: docId,
+        SCHED_SERIAL: schedSerial,
+        SHIFT_ID: shiftId,
+        dateDone: dateDone,
+        EXPECTED_END_DATE: expectedEndDate,
+        PAT_TEL: patTel,
+        TELEPHONE_COUNTRY_CODE: telephoneCountryCode
+      };
+
+      // Add patient-specific data
+      if (patientId) {
+        // Registered patient
+        appointmentData.PATIENT_ID = patientId;
+      } else if (patName && gender) {
+        // Non-registered patient
+        appointmentData.PAT_NAME = patName;
+        appointmentData.GENDER = gender;
+      }
+
       const response = await fetch('https://salemapi.alsalamhosp.com:447/submit_appointment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          SERV_TYPE: servType,
-          buffer_status: bufferStatus,
-          INIT: init,
-          COMPUTER_NAME: computerName,
-          BRANCH_ID: branchId,
-          SPEC_ID: specId,
-          DOC_ID: docId,
-          SCHED_SERIAL: schedSerial,
-          SHIFT_ID: shiftId,
-          dateDone: dateDone,
-          EXPECTED_END_DATE: expectedEndDate,
-          PAT_TEL: patTel,
-          TELEPHONE_COUNTRY_CODE: telephoneCountryCode,
-          PATIENT_ID: patientId
-        })
+        body: JSON.stringify(appointmentData)
       });
+      
       const data = await response.json();
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Helper tool for date formatting
+server.registerTool(
+  "format_appointment_date",
+  {
+    description: "Format appointment date and time for API submission",
+    inputSchema: {
+      date: z.string().describe("Date in YYYY-MM-DD format"),
+      time: z.string().describe("Time in HH:mm format"),
+      duration: z.number().optional().describe("Appointment duration in minutes (default: 30)"),
+    },
+  },
+  async ({ date, time, duration = 30 }) => {
+    try {
+      // Parse the date and time
+      const [year, month, day] = date.split('-');
+      const [hours, minutes] = time.split(':');
+      
+      // Create start date
+      const startDate = new Date(year, month - 1, day, parseInt(hours), parseInt(minutes));
+      
+      // Create end date (add duration)
+      const endDate = new Date(startDate.getTime() + (duration * 60000));
+      
+      // Format for API (DD/MM/YYYY HH:mm:ss)
+      const formatDate = (date) => {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+      };
+      
+      const result = {
+        dateDone: formatDate(startDate),
+        expectedEndDate: formatDate(endDate),
+        originalDate: date,
+        originalTime: time,
+        duration: duration
+      };
+      
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
     } catch (error) {
       return {
@@ -603,7 +701,10 @@ app.get('/health', (req, res) => {
       'submit_appointment',
       
       // Pricing API
-      'get_packages_prices'
+      'get_packages_prices',
+      
+      // Helper tools
+      'format_appointment_date'
     ]
   });
 });
