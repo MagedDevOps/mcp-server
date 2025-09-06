@@ -1,0 +1,461 @@
+{
+	"info": {
+		"_postman_id": "a983f8d3-baf2-4894-a820-857d02bb1edc",
+		"name": "Al Salam UAT APIs",
+		"description": "Postman collection for Al Salam Hospital UAT APIs",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "46646768"
+	},
+	"item": [
+		{
+			"name": "Branches API",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/branches",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"branches"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Chatbot Information API",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/chatbotinfo",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"chatbotinfo"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Chatbot Menu Items",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/menu/0?lang=E",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"menu",
+						"0"
+					],
+					"query": [
+						{
+							"key": "lang",
+							"value": "E"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Appointments Count",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/msgcount?today=08-27-2025",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"msgcount"
+					],
+					"query": [
+						{
+							"key": "today",
+							"value": "08-27-2025"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Appointments Messages to Send",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/msg2send",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"msg2send"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Patient Pending Appointments by phone",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"pat_mobile\": \"+96569020323\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/byphone",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"byphone"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Confirm/Cancel Appointment",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"SERV_TYPE\": \"1\",\r\n  \"buffer_status\": \"1\",\r\n  \"INIT\": \"1\",\r\n  \"COMPUTER_NAME\": \"whatsapp\",\r\n  \"BRANCH_ID\": \"1\",\r\n  \"SPEC_ID\": \"47\",\r\n  \"DOC_ID\": \"1002185\",\r\n  \"SCHED_SERIAL\": \"63047\",\r\n  \"SHIFT_ID\": \"1\",\r\n  \"dateDone\": \"10/08/2025 10:00:00\",\r\n  \"EXPECTED_END_DATE\": \"10/08/2025 10:30:00\",\r\n  \"PAT_TEL\": \"+96599972428\",\r\n  \"TELEPHONE_COUNTRY_CODE\": \"+965\",\r\n  \"PATIENT_ID\": \"98722698\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/confcanc?id=98642124&response=1",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"confcanc"
+					],
+					"query": [
+						{
+							"key": "id",
+							"value": "98642124"
+						},
+						{
+							"key": "response",
+							"value": "1"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Doctors",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/get_doctor_schedule?EMP_ID=1002722&HOSP_ID=1",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"get_doctor_schedule"
+					],
+					"query": [
+						{
+							"key": "EMP_ID",
+							"value": "1002722"
+						},
+						{
+							"key": "HOSP_ID",
+							"value": "1"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Doctor Next Available Slots",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=2&DOC_ID=1002565&CLINIC_ID=17",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"get_doc_next_availble_slot"
+					],
+					"query": [
+						{
+							"key": "BRANCH_ID",
+							"value": "2"
+						},
+						{
+							"key": "DOC_ID",
+							"value": "1002565"
+						},
+						{
+							"key": "CLINIC_ID",
+							"value": "17"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Submit Appointment",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"SERV_TYPE\": \"1\",\n  \"buffer_status\": \"1\",\n  \"INIT\": \"1\",\n  \"COMPUTER_NAME\": \"whatsapp\",\n  \"BRANCH_ID\": \"1\",\n  \"SPEC_ID\": \"47\",\n  \"DOC_ID\": \"1002185\",\n  \"SCHED_SERIAL\": \"63047\",\n  \"SHIFT_ID\": \"1\",\n  \"dateDone\": \"10/08/2025 10:00:00\",\n  \"EXPECTED_END_DATE\": \"10/08/2025 10:30:00\",\n  \"PAT_TEL\": \"+96599972428\",\n  \"TELEPHONE_COUNTRY_CODE\": \"+965\",\n  \"PATIENT_ID\": \"98722698\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/submit_appointment",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"submit_appointment"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Detailed Doctors Information",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/all_bsd?checkforupdate=0",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"all_bsd"
+					],
+					"query": [
+						{
+							"key": "checkforupdate",
+							"value": "0"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Mobile Number Registration Status",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"mobile\": \"+96569020323\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/checkPatientWhatsApp",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"checkPatientWhatsApp"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Pricing Information",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "https://salemapi.alsalamhosp.com:447/packagesprices",
+					"protocol": "https",
+					"host": [
+						"salemapi",
+						"alsalamhosp",
+						"com"
+					],
+					"port": "447",
+					"path": [
+						"packagesprices"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
