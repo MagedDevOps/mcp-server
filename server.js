@@ -127,18 +127,63 @@ server.registerTool(
 server.registerTool(
   "search_individual_category",
   {
-    description: "Search within individual categories",
+    description: "Search within individual categories with multi-language support",
     inputSchema: {
       term: z.string().describe("Search term"),
-      lang: z.string().optional().describe("Language code (default: E)"),
+      lang: z.string().optional().describe("Language code (default: A)"),
     },
   },
-  async ({ term, lang = "E" }) => {
+  async ({ term, lang = "A" }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(term)}&lang=${lang}`);
-      const data = await response.json();
+      let searchResults = [];
+      let searchAttempts = [];
+      
+      // Try multiple search strategies
+      const searchStrategies = [
+        { term: term, lang: lang, description: "البحث الأصلي" },
+        { term: term, lang: lang === "A" ? "E" : "A", description: "البحث باللغة الأخرى" },
+        { term: term.split(' ')[0], lang: lang, description: "البحث بالاسم الأول فقط" },
+        { term: term.split(' ')[0], lang: lang === "A" ? "E" : "A", description: "البحث بالاسم الأول باللغة الأخرى" }
+      ];
+      
+      // Try each search strategy
+      for (const strategy of searchStrategies) {
+        try {
+          const response = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(strategy.term)}&lang=${strategy.lang}`);
+          const data = await response.json();
+          
+          searchAttempts.push({
+            strategy: strategy.description,
+            term: strategy.term,
+            lang: strategy.lang,
+            results: data.searchResults ? data.searchResults.length : 0
+          });
+          
+          if (data.searchResults && data.searchResults.length > 0) {
+            searchResults = data.searchResults;
+            break; // Found results, stop searching
+          }
+        } catch (error) {
+          searchAttempts.push({
+            strategy: strategy.description,
+            term: strategy.term,
+            lang: strategy.lang,
+            error: error.message
+          });
+          continue;
+        }
+      }
+      
+      // Return results with search attempts info
+      const result = {
+        searchResults: searchResults,
+        searchAttempts: searchAttempts,
+        totalResults: searchResults.length,
+        success: searchResults.length > 0
+      };
+      
       return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
     } catch (error) {
       return {
@@ -148,11 +193,11 @@ server.registerTool(
   }
 );
 
-// Enhanced doctor search with better error handling
+// Enhanced doctor search with multi-language support and better error handling
 server.registerTool(
   "search_doctor_enhanced",
   {
-    description: "Enhanced doctor search with better error handling and available slots",
+    description: "Enhanced doctor search with multi-language support, better error handling and available slots",
     inputSchema: {
       term: z.string().describe("Search term"),
       lang: z.string().optional().describe("Language code (default: A)"),
@@ -160,28 +205,66 @@ server.registerTool(
   },
   async ({ term, lang = "A" }) => {
     try {
-      // Search for the doctor
-      const searchResponse = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(term)}&lang=${lang}`);
-      const searchData = await searchResponse.json();
+      let searchResults = [];
+      let searchAttempts = [];
       
-      if (!searchData.searchResults || searchData.searchResults.length === 0) {
+      // Try multiple search strategies
+      const searchStrategies = [
+        { term: term, lang: lang, description: "البحث الأصلي" },
+        { term: term, lang: lang === "A" ? "E" : "A", description: "البحث باللغة الأخرى" },
+        { term: term.split(' ')[0], lang: lang, description: "البحث بالاسم الأول فقط" },
+        { term: term.split(' ')[0], lang: lang === "A" ? "E" : "A", description: "البحث بالاسم الأول باللغة الأخرى" }
+      ];
+      
+      // Try each search strategy
+      for (const strategy of searchStrategies) {
+        try {
+          const searchResponse = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(strategy.term)}&lang=${strategy.lang}`);
+          const searchData = await searchResponse.json();
+          
+          searchAttempts.push({
+            strategy: strategy.description,
+            term: strategy.term,
+            lang: strategy.lang,
+            results: searchData.searchResults ? searchData.searchResults.length : 0
+          });
+          
+          if (searchData.searchResults && searchData.searchResults.length > 0) {
+            searchResults = searchData.searchResults;
+            break; // Found results, stop searching
+          }
+        } catch (error) {
+          searchAttempts.push({
+            strategy: strategy.description,
+            term: strategy.term,
+            lang: strategy.lang,
+            error: error.message
+          });
+          continue;
+        }
+      }
+      
+      if (searchResults.length === 0) {
         return {
           content: [{ 
             type: "text", 
             text: JSON.stringify({
               success: false,
               message: "لم يتم العثور على طبيب بهذا الاسم",
+              searchAttempts: searchAttempts,
               suggestions: [
                 "تأكد من كتابة الاسم بشكل صحيح",
                 "جرب البحث بالاسم الأول فقط",
+                "جرب البحث بالإنجليزية إذا كان الاسم إنجليزي",
                 "أو اختر من قائمة الأطباء المتاحين"
-              ]
+              ],
+              alternativeSearch: "هل تريد البحث في تخصص معين؟"
             }, null, 2) 
           }],
         };
       }
       
-      const doctor = searchData.searchResults[0];
+      const doctor = searchResults[0];
       
       // Try to get available slots with different CLINIC_ID values
       let availableSlots = null;
@@ -215,6 +298,7 @@ server.registerTool(
               specialty_id: doctor.specialty_id
             },
             available_slots: availableSlots,
+            searchAttempts: searchAttempts,
             message: availableSlots ? "تم العثور على الطبيب والمواعيد المتاحة" : "تم العثور على الطبيب ولكن لا توجد مواعيد متاحة حالياً"
           }, null, 2) 
         }],
