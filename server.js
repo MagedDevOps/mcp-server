@@ -277,20 +277,36 @@ server.registerTool(
       
       const doctor = searchResults[0];
       
-      // Try to get available slots with different CLINIC_ID values
+      // Try to get available slots using the improved function
       let availableSlots = null;
-      const clinicIds = [1, 2, 3, 4, 5]; // Try multiple CLINIC_ID values
+      let slotsSearchAttempts = [];
+      
+      // Try multiple CLINIC_ID values
+      const clinicIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
       
       for (const clinicId of clinicIds) {
         try {
           const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`);
           const slotsData = await slotsResponse.json();
           
-          if (slotsData.available_slots || slotsData.slots) {
+          slotsSearchAttempts.push({
+            clinicId: clinicId,
+            success: !slotsData.error,
+            error: slotsData.error || null,
+            hasSlots: !!(slotsData.available_slots || slotsData.slots || slotsData.Root)
+          });
+          
+          if (!slotsData.error && (slotsData.available_slots || slotsData.slots || slotsData.Root)) {
             availableSlots = slotsData;
             break;
           }
         } catch (error) {
+          slotsSearchAttempts.push({
+            clinicId: clinicId,
+            success: false,
+            error: error.message,
+            hasSlots: false
+          });
           continue; // Try next CLINIC_ID
         }
       }
@@ -310,6 +326,7 @@ server.registerTool(
             },
             available_slots: availableSlots,
             searchAttempts: searchAttempts,
+            slotsSearchAttempts: slotsSearchAttempts,
             message: availableSlots ? "تم العثور على الطبيب والمواعيد المتاحة" : "تم العثور على الطبيب ولكن لا توجد مواعيد متاحة حالياً"
           }, null, 2) 
         }],
@@ -464,21 +481,81 @@ server.registerTool(
 server.registerTool(
   "get_doctor_available_slots",
   {
-    description: "Get doctor's next available appointment slots",
+    description: "Get doctor's next available appointment slots with multiple clinic attempts",
     inputSchema: {
       branchId: z.string().describe("Branch ID"),
       docId: z.string().describe("Doctor ID"),
-      clinicId: z.string().describe("Clinic ID"),
+      clinicId: z.string().optional().describe("Clinic ID (optional, will try multiple if not provided)"),
     },
   },
   async ({ branchId, docId, clinicId }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${clinicId}`);
-      const data = await response.json();
+      let availableSlots = null;
+      let successfulClinicId = null;
+      let searchAttempts = [];
       
-      // Process the response to include SCHED_SERIAL for each slot
-      if (data.available_slots || data.slots) {
-        const slots = data.available_slots || data.slots;
+      // If clinicId is provided, try it first, otherwise try multiple clinic IDs
+      const clinicIdsToTry = clinicId ? [clinicId] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+      
+      for (const currentClinicId of clinicIdsToTry) {
+        try {
+          const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${currentClinicId}`);
+          const data = await response.json();
+          
+          searchAttempts.push({
+            clinicId: currentClinicId,
+            success: !data.error,
+            error: data.error || null,
+            hasSlots: !!(data.available_slots || data.slots || data.Root)
+          });
+          
+          if (!data.error && (data.available_slots || data.slots || data.Root)) {
+            availableSlots = data;
+            successfulClinicId = currentClinicId;
+            break; // Found slots, stop searching
+          }
+        } catch (error) {
+          searchAttempts.push({
+            clinicId: currentClinicId,
+            success: false,
+            error: error.message,
+            hasSlots: false
+          });
+          continue;
+        }
+      }
+      
+      if (availableSlots && (availableSlots.available_slots || availableSlots.slots || availableSlots.Root)) {
+        let slots = [];
+        
+        // Handle different response formats
+        if (availableSlots.Root && availableSlots.Root.HOURS_SLOTS) {
+          // New format with Root structure
+          const hoursSlots = availableSlots.Root.HOURS_SLOTS;
+          const singleHourSlots = hoursSlots.HOURS_SLOTS_ROW?.SINGLE_HOUR_SLOTS?.SINGLE_HOUR_SLOTS_ROW;
+          
+          if (singleHourSlots) {
+            slots = [{
+              sched_serial: singleHourSlots.SCHED_SER || singleHourSlots.QUE_SYS_SER,
+              slot_id: singleHourSlots.ID,
+              date: hoursSlots.DAY_DATE,
+              time: singleHourSlots.ID_AM_PM,
+              appointment_time: singleHourSlots.ID_AM_PM,
+              slot_status: singleHourSlots.SLOT_STATUS,
+              shift_id: singleHourSlots.SHIFT_ID,
+              place_id: singleHourSlots.PLACE_ID,
+              doctor_id: docId,
+              clinic_id: successfulClinicId,
+              branch_id: branchId,
+              next_available_time: availableSlots.Root.next_available_time,
+              next_available_sched_ser: availableSlots.Root.NEXT_AVAILABLE_SCHED_SER
+            }];
+          }
+        } else {
+          // Original format
+          slots = availableSlots.available_slots || availableSlots.slots;
+        }
+        
         const processedSlots = slots.map((slot, index) => ({
           ...slot,
           sched_serial: slot.sched_serial || slot.slot_id || `slot_${index + 1}`,
@@ -486,7 +563,7 @@ server.registerTool(
           date: slot.date || new Date().toISOString().split('T')[0],
           time: slot.time || slot.appointment_time,
           doctor_id: docId,
-          clinic_id: clinicId,
+          clinic_id: successfulClinicId,
           branch_id: branchId
         }));
         
@@ -494,21 +571,48 @@ server.registerTool(
           content: [{ 
             type: "text", 
             text: JSON.stringify({
+              success: true,
               available_slots: processedSlots,
               doctor_id: docId,
-              clinic_id: clinicId,
-              branch_id: branchId
+              clinic_id: successfulClinicId,
+              branch_id: branchId,
+              searchAttempts: searchAttempts,
+              message: `تم العثور على ${processedSlots.length} موعد متاح`
             }, null, 2) 
           }],
         };
       }
       
+      // No slots found
       return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: false,
+            available_slots: [],
+            doctor_id: docId,
+            branch_id: branchId,
+            searchAttempts: searchAttempts,
+            message: "لا توجد مواعيد متاحة حالياً لهذا الطبيب",
+            suggestions: [
+              "جرب طبيب آخر في نفس التخصص",
+              "اتصل بالمستشفى مباشرة للاستفسار عن المواعيد",
+              "جرب في وقت لاحق",
+              "تحقق من التخصصات الأخرى المتاحة"
+            ]
+          }, null, 2) 
+        }],
       };
     } catch (error) {
       return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: false,
+            error: error.message,
+            message: "حدث خطأ أثناء البحث عن المواعيد المتاحة"
+          }, null, 2) 
+        }],
       };
     }
   }
