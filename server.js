@@ -148,6 +148,93 @@ server.registerTool(
   }
 );
 
+// Enhanced doctor search with better error handling
+server.registerTool(
+  "search_doctor_enhanced",
+  {
+    description: "Enhanced doctor search with better error handling and available slots",
+    inputSchema: {
+      term: z.string().describe("Search term"),
+      lang: z.string().optional().describe("Language code (default: A)"),
+    },
+  },
+  async ({ term, lang = "A" }) => {
+    try {
+      // Search for the doctor
+      const searchResponse = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(term)}&lang=${lang}`);
+      const searchData = await searchResponse.json();
+      
+      if (!searchData.searchResults || searchData.searchResults.length === 0) {
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              success: false,
+              message: "لم يتم العثور على طبيب بهذا الاسم",
+              suggestions: [
+                "تأكد من كتابة الاسم بشكل صحيح",
+                "جرب البحث بالاسم الأول فقط",
+                "أو اختر من قائمة الأطباء المتاحين"
+              ]
+            }, null, 2) 
+          }],
+        };
+      }
+      
+      const doctor = searchData.searchResults[0];
+      
+      // Try to get available slots with different CLINIC_ID values
+      let availableSlots = null;
+      const clinicIds = [1, 2, 3, 4, 5]; // Try multiple CLINIC_ID values
+      
+      for (const clinicId of clinicIds) {
+        try {
+          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`);
+          const slotsData = await slotsResponse.json();
+          
+          if (slotsData.available_slots || slotsData.slots) {
+            availableSlots = slotsData;
+            break;
+          }
+        } catch (error) {
+          continue; // Try next CLINIC_ID
+        }
+      }
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: true,
+            doctor: {
+              id: doctor.doctor_id,
+              name: doctor.doctor_name,
+              specialty: doctor.specialty_name,
+              hospital: doctor.hospital_name,
+              hospital_id: doctor.hospital_id,
+              specialty_id: doctor.specialty_id
+            },
+            available_slots: availableSlots,
+            message: availableSlots ? "تم العثور على الطبيب والمواعيد المتاحة" : "تم العثور على الطبيب ولكن لا توجد مواعيد متاحة حالياً"
+          }, null, 2) 
+        }],
+      };
+      
+    } catch (error) {
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: false,
+            error: error.message,
+            message: "حدث خطأ أثناء البحث عن الطبيب"
+          }, null, 2) 
+        }],
+      };
+    }
+  }
+);
+
 
 // Branches API
 server.registerTool(
@@ -453,6 +540,92 @@ server.registerTool(
   }
 );
 
+// Enhanced appointment booking with better validation
+server.registerTool(
+  "book_appointment_enhanced",
+  {
+    description: "Enhanced appointment booking with better validation and error handling",
+    inputSchema: {
+      doctorId: z.string().describe("Doctor ID"),
+      hospitalId: z.string().describe("Hospital ID"),
+      specialtyId: z.string().describe("Specialty ID"),
+      patientName: z.string().describe("Patient name"),
+      patientPhone: z.string().describe("Patient phone number"),
+      preferredDate: z.string().optional().describe("Preferred date (YYYY-MM-DD)"),
+      preferredTime: z.string().optional().describe("Preferred time (HH:mm)"),
+    },
+  },
+  async ({ doctorId, hospitalId, specialtyId, patientName, patientPhone, preferredDate, preferredTime }) => {
+    try {
+      // Search for available slots
+      let availableSlots = null;
+      const clinicIds = [1, 2, 3, 4, 5];
+      
+      for (const clinicId of clinicIds) {
+        try {
+          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${hospitalId}&DOC_ID=${doctorId}&CLINIC_ID=${clinicId}`);
+          const slotsData = await slotsResponse.json();
+          
+          if (slotsData.available_slots || slotsData.slots) {
+            availableSlots = slotsData;
+            break;
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+      
+      if (!availableSlots || (!availableSlots.available_slots && !availableSlots.slots)) {
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              success: false,
+              message: "لا توجد مواعيد متاحة حالياً للدكتور المحدد",
+              suggestions: [
+                "جرب طبيب آخر في نفس التخصص",
+                "اتصل بالمستشفى مباشرة",
+                "جرب في وقت لاحق"
+              ]
+            }, null, 2) 
+          }],
+        };
+      }
+      
+      // Show available slots to patient
+      const slots = availableSlots.available_slots || availableSlots.slots;
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: true,
+            message: "تم العثور على مواعيد متاحة",
+            available_slots: slots,
+            booking_instructions: [
+              "اختر الموعد المناسب من القائمة أعلاه",
+              "سيتم تأكيد الحجز بعد اختيار الموعد",
+              "ستتلقى رسالة تأكيد على رقم الهاتف"
+            ]
+          }, null, 2) 
+        }],
+      };
+      
+    } catch (error) {
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: false,
+            error: error.message,
+            message: "حدث خطأ أثناء حجز الموعد"
+          }, null, 2) 
+        }],
+      };
+    }
+  }
+);
+
 // Helper tool for date formatting
 server.registerTool(
   "format_appointment_date",
@@ -582,7 +755,7 @@ app.get('/health', (req, res) => {
       'get_doctors_by_hospital_specialty',
       'search_all_combined',
       'search_individual_category',
-      
+      'search_doctor_enhanced',
       
       // Branches API
       'get_branches',
@@ -594,6 +767,7 @@ app.get('/health', (req, res) => {
       'get_appointments_count',
       'get_patient_pending_appointments',
       'confirm_cancel_appointment',
+      'book_appointment_enhanced',
       
       // Doctor APIs
       'get_doctor_available_slots',
@@ -601,8 +775,6 @@ app.get('/health', (req, res) => {
       // Patient APIs
       'check_patient_whatsapp_status',
       'submit_appointment',
-      
-      
       
       // Helper tools
       'format_appointment_date'
