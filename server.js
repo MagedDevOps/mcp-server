@@ -367,26 +367,38 @@ server.registerTool(
           attemptLogs.push({
             clinic_id: testClinicId,
             response_status: response.status,
-            has_slots: !!(data.available_slots || data.slots || (data.length && data.length > 0)),
-            data_keys: Object.keys(data || {})
+            has_slots: !!(data.available_slots || data.slots || (data.length && data.length > 0) || (data.Root && data.Root.HOURS_SLOTS)),
+            data_keys: Object.keys(data || {}),
+            has_root_structure: !!(data.Root && data.Root.HOURS_SLOTS),
+            root_keys: data.Root ? Object.keys(data.Root) : null
           });
           
           // Check if we got slots in the actual API format
           if (data.Root && data.Root.HOURS_SLOTS && data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW) {
             // Extract slots from the nested structure
-            const hourSlots = data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW;
+            const hourSlots = Array.isArray(data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW) ? 
+              data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW : 
+              [data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW];
+            
             const extractedSlots = [];
             
             hourSlots.forEach(hourSlot => {
               if (hourSlot.SINGLE_HOUR_SLOTS && hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW) {
-                hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW.forEach(slot => {
-                  // Only include available slots (empty or future status)
+                const singleSlots = Array.isArray(hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW) ?
+                  hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW :
+                  [hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW];
+                
+                singleSlots.forEach(slot => {
+                  // Include available slots (empty or future status)
                   if (slot.SLOT_STATUS === 'empty' || slot.SLOT_STATUS === 'future') {
                     extractedSlots.push(slot);
                   }
                 });
               }
             });
+            
+            attemptLogs[attemptLogs.length - 1].extracted_slots_count = extractedSlots.length;
+            attemptLogs[attemptLogs.length - 1].sample_slot = extractedSlots[0] || null;
             
             if (extractedSlots.length > 0) {
               availableSlots = extractedSlots;
