@@ -64,8 +64,15 @@ server.registerTool(
     try {
       const response = await fetch(`https://salemapi.alsalamhosp.com:447/specialties/${hospitalId}?lang=${lang}`);
       const data = await response.json();
+      
+      // Transform the response to match expected format
+      const specialties = data.specialties.map(specialty => ({
+        specialtyId: specialty.specialty_id.toString(),
+        specialtyName: specialty.specialty_name
+      }));
+      
       return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(specialties, null, 2) }],
       };
     } catch (error) {
       return {
@@ -78,184 +85,40 @@ server.registerTool(
 server.registerTool(
   "get_doctors_by_hospital_specialty",
   {
-    description: "Get doctors for a specific hospital and specialty with enhanced matching",
+    description: "Get doctors for a specific hospital and specialty",
     inputSchema: {
       hospitalId: z.string().describe("Hospital ID"),
-      specialtyId: z.string().optional().describe("Specialty ID (if known)"),
-      specialtyName: z.string().optional().describe("Specialty name (Arabic or English)"),
+      specialtyId: z.string().describe("Specialty ID"),
       lang: z.string().optional().describe("Language code (default: A)"),
     },
   },
-  async ({ hospitalId, specialtyId, specialtyName, lang = "A" }) => {
+  async ({ hospitalId, specialtyId, lang = "A" }) => {
     try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doctors?branch_id=${hospitalId}&branch_type=1&spec_id=${specialtyId}`);
+      const data = await response.json();
+      
+      // Transform the response to match expected format
       let doctors = [];
-      let searchAttempts = [];
-      
-      // If we have both specialtyId and specialtyName, try the direct approach first
-      if (specialtyId) {
-        try {
-          const response = await fetch(`https://salemapi.alsalamhosp.com:447/doctors/${hospitalId}/${specialtyId}?lang=${lang}`);
-          const data = await response.json();
+      if (data.Root && data.Root.DOCTOR && data.Root.DOCTOR.DOCTOR_ROW) {
+        const doctorRows = Array.isArray(data.Root.DOCTOR.DOCTOR_ROW) 
+          ? data.Root.DOCTOR.DOCTOR_ROW 
+          : [data.Root.DOCTOR.DOCTOR_ROW];
           
-          searchAttempts.push({
-            method: "direct_specialty_id",
-            hospital_id: hospitalId,
-            specialty_id: specialtyId,
-            lang: lang,
-            success: !!(data && data.length > 0),
-            result_count: data ? data.length : 0
-          });
-          
-          if (data && data.length > 0) {
-            doctors = data;
-          }
-        } catch (error) {
-          searchAttempts.push({
-            method: "direct_specialty_id",
-            error: error.message
-          });
-        }
-      }
-      
-      // If no direct results and we have a specialty name, try to find the specialty first
-      if (doctors.length === 0 && specialtyName) {
-        try {
-          // Get all specialties for this hospital
-          const specialtiesResponse = await fetch(`https://salemapi.alsalamhosp.com:447/specialties/${hospitalId}?lang=${lang}`);
-          const specialtiesData = await specialtiesResponse.json();
-          
-          searchAttempts.push({
-            method: "get_specialties_list",
-            hospital_id: hospitalId,
-            lang: lang,
-            specialties_found: specialtiesData ? specialtiesData.length : 0
-          });
-          
-          if (specialtiesData && specialtiesData.length > 0) {
-            // Find matching specialty by name (flexible matching)
-            const matchingSpecialty = specialtiesData.find(specialty => {
-              const specName = specialty.specialty_name || specialty.name;
-              const searchName = specialtyName.toLowerCase();
-              const specNameLower = specName ? specName.toLowerCase() : '';
-              
-              return specNameLower.includes(searchName) || 
-                     searchName.includes(specNameLower) ||
-                     specNameLower.includes('تخدير') && searchName.includes('تخدير') ||
-                     specNameLower.includes('anesthesia') && searchName.includes('anesthesia');
-            });
-            
-            if (matchingSpecialty) {
-              const foundSpecialtyId = matchingSpecialty.specialty_id || matchingSpecialty.id;
-              
-              searchAttempts.push({
-                method: "found_matching_specialty",
-                specialty_name: matchingSpecialty.specialty_name || matchingSpecialty.name,
-                specialty_id: foundSpecialtyId
-              });
-              
-              // Now get doctors for this specialty
-              try {
-                const doctorsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/doctors/${hospitalId}/${foundSpecialtyId}?lang=${lang}`);
-                const doctorsData = await doctorsResponse.json();
-                
-                searchAttempts.push({
-                  method: "get_doctors_by_found_specialty",
-                  hospital_id: hospitalId,
-                  specialty_id: foundSpecialtyId,
-                  doctors_found: doctorsData ? doctorsData.length : 0
-                });
-                
-                if (doctorsData && doctorsData.length > 0) {
-                  doctors = doctorsData;
-                }
-              } catch (error) {
-                searchAttempts.push({
-                  method: "get_doctors_by_found_specialty",
-                  error: error.message
-                });
-              }
-            }
-          }
-        } catch (error) {
-          searchAttempts.push({
-            method: "get_specialties_list",
-            error: error.message
-          });
-        }
-      }
-      
-      // If still no results, try alternative approaches
-      if (doctors.length === 0) {
-        // Try common specialty IDs for anesthesia
-        const commonAnesthesiaIds = ['17', '2', '8', '15', '20'];
-        
-        for (const testSpecialtyId of commonAnesthesiaIds) {
-          try {
-            const response = await fetch(`https://salemapi.alsalamhosp.com:447/doctors/${hospitalId}/${testSpecialtyId}?lang=${lang}`);
-            const data = await response.json();
-            
-            searchAttempts.push({
-              method: "test_common_anesthesia_ids",
-              specialty_id: testSpecialtyId,
-              doctors_found: data ? data.length : 0
-            });
-            
-            if (data && data.length > 0) {
-              // Check if any doctor matches anesthesia keywords
-              const anesthesiaDoctors = data.filter(doctor => {
-                const doctorName = (doctor.doctor_name || '').toLowerCase();
-                const specialtyName = (doctor.specialty_name || '').toLowerCase();
-                return specialtyName.includes('تخدير') || 
-                       specialtyName.includes('anesthesia') ||
-                       doctorName.includes('تخدير');
-              });
-              
-              if (anesthesiaDoctors.length > 0) {
-                doctors = anesthesiaDoctors;
-                break;
-              }
-            }
-          } catch (error) {
-            continue;
-          }
-        }
+        doctors = doctorRows.map(doctor => ({
+          doctorId: doctor.EMP_ID,
+          doctorName: doctor.EMP_NAME_AR || doctor.EMP_NAME_EN,
+          specialtyName: doctor.PLACE_AR_NAME || doctor.PLACE_EN_NAME,
+          hospitalId: hospitalId,
+          specialtyId: specialtyId
+        }));
       }
       
       return {
-        content: [{ 
-          type: "text", 
-          text: JSON.stringify({
-            success: doctors.length > 0,
-            doctors: doctors,
-            hospital_id: hospitalId,
-            specialty_id: specialtyId,
-            specialty_name: specialtyName,
-            total_doctors: doctors.length,
-            search_attempts: searchAttempts,
-            message: doctors.length > 0 ? 
-              `تم العثور على ${doctors.length} طبيب` : 
-              "لم يتم العثور على أطباء في هذا التخصص",
-            debug_info: {
-              requested_hospital: hospitalId,
-              requested_specialty: specialtyName || specialtyId,
-              language: lang
-            }
-          }, null, 2) 
-        }],
+        content: [{ type: "text", text: JSON.stringify(doctors, null, 2) }],
       };
     } catch (error) {
       return {
-        content: [{ 
-          type: "text", 
-          text: JSON.stringify({
-            success: false,
-            error: error.message,
-            hospital_id: hospitalId,
-            specialty_id: specialtyId,
-            specialty_name: specialtyName,
-            message: "حدث خطأ أثناء البحث عن الأطباء"
-          }, null, 2) 
-        }],
+        content: [{ type: "text", text: `Error: ${error.message}` }],
       };
     }
   }
@@ -430,10 +293,17 @@ server.registerTool(
   },
   async () => {
     try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/branches');
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/hospitals');
       const data = await response.json();
+      
+      // Transform the response to match expected format
+      const branches = data.hospitals.map(hospital => ({
+        branchId: hospital.hospital_id.toString(),
+        branchName: hospital.hospital_name
+      }));
+      
       return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(branches, null, 2) }],
       };
     } catch (error) {
       return {
