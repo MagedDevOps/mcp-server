@@ -193,60 +193,6 @@ server.registerTool(
 );
 
 // Appointment APIs
-server.registerTool(
-  "get_appointments_count",
-  {
-    description: "Get appointments count for a specific date",
-    inputSchema: {
-      date: z.string().describe("Date in MM-DD-YYYY format (e.g., 08-25-2025)"),
-    },
-  },
-  async ({ date }) => {
-    try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/msgcount?today=${date}`);
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
-
-
-server.registerTool(
-  "get_patient_pending_appointments",
-  {
-    description: "Get patient's pending appointments by phone number",
-    inputSchema: {
-      mobile: z.string().describe("Patient's mobile number (e.g., +96569020323)"),
-    },
-  },
-  async ({ mobile }) => {
-    try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/byphone', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          pat_mobile: mobile
-        })
-      });
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
 server.registerTool(
   "confirm_cancel_appointment",
