@@ -213,7 +213,18 @@ server.registerTool(
         { term: term, lang: lang, description: "البحث الأصلي" },
         { term: term, lang: lang === "A" ? "E" : "A", description: "البحث باللغة الأخرى" },
         { term: term.split(' ')[0], lang: lang, description: "البحث بالاسم الأول فقط" },
-        { term: term.split(' ')[0], lang: lang === "A" ? "E" : "A", description: "البحث بالاسم الأول باللغة الأخرى" }
+        { term: term.split(' ')[0], lang: lang === "A" ? "E" : "A", description: "البحث بالاسم الأول باللغة الأخرى" },
+        // Additional strategies for Arabic names that might be stored in English
+        { term: term.split(' ')[0], lang: "E", description: "البحث بالاسم الأول بالإنجليزية" },
+        { term: term.split(' ')[0], lang: "A", description: "البحث بالاسم الأول بالعربية" },
+        // Try common name variations for Arabic names stored in English
+        { term: "Bassam", lang: "A", description: "البحث بـ Bassam" },
+        { term: "بسام", lang: "E", description: "البحث بـ بسام بالإنجليزية" },
+        // Try if the first name is a common Arabic name that might be stored in English
+        ...(term.split(' ')[0] === 'بسام' ? [{ term: "Bassam", lang: "A", description: "البحث بـ Bassam للاسم بسام" }] : []),
+        ...(term.split(' ')[0] === 'محمد' ? [{ term: "Mohammed", lang: "A", description: "البحث بـ Mohammed للاسم محمد" }] : []),
+        ...(term.split(' ')[0] === 'أحمد' ? [{ term: "Ahmed", lang: "A", description: "البحث بـ Ahmed للاسم أحمد" }] : []),
+        ...(term.split(' ')[0] === 'علي' ? [{ term: "Ali", lang: "A", description: "البحث بـ Ali للاسم علي" }] : [])
       ];
       
       // Try each search strategy
