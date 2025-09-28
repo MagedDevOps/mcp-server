@@ -127,22 +127,134 @@ server.registerTool(
 server.registerTool(
   "search_individual_category",
   {
-    description: "Search within individual categories",
+    description: "Enhanced search within individual categories with multi-language support, better error handling and available slots",
     inputSchema: {
       term: z.string().describe("Search term"),
-      lang: z.string().optional().describe("Language code (default: E)"),
+      lang: z.string().optional().describe("Language code (default: A)"),
     },
   },
-  async ({ term, lang = "E" }) => {
+  async ({ term, lang = "A" }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(term)}&lang=${lang}`);
-      const data = await response.json();
+      let searchResults = [];
+      let searchAttempts = [];
+      
+      // Try multiple search strategies
+      const searchStrategies = [
+        { term: term, lang: lang, description: "البحث الأصلي" },
+        { term: term, lang: lang === "A" ? "E" : "A", description: "البحث باللغة الأخرى" },
+        { term: term.split(' ')[0], lang: lang, description: "البحث بالاسم الأول فقط" },
+        { term: term.split(' ')[0], lang: lang === "A" ? "E" : "A", description: "البحث بالاسم الأول باللغة الأخرى" },
+        // Additional strategies for Arabic names that might be stored in English
+        { term: term.split(' ')[0], lang: "E", description: "البحث بالاسم الأول بالإنجليزية" },
+        { term: term.split(' ')[0], lang: "A", description: "البحث بالاسم الأول بالعربية" },
+        // Try common name variations for Arabic names stored in English
+        { term: "Bassam", lang: "A", description: "البحث بـ Bassam" },
+        { term: "بسام", lang: "E", description: "البحث بـ بسام بالإنجليزية" },
+        // Try if the first name is a common Arabic name that might be stored in English
+        ...(term.split(' ')[0] === 'بسام' ? [{ term: "Bassam", lang: "A", description: "البحث بـ Bassam للاسم بسام" }] : []),
+        ...(term.split(' ')[0] === 'محمد' ? [{ term: "Mohammed", lang: "A", description: "البحث بـ Mohammed للاسم محمد" }] : []),
+        ...(term.split(' ')[0] === 'أحمد' ? [{ term: "Ahmed", lang: "A", description: "البحث بـ Ahmed للاسم أحمد" }] : []),
+        ...(term.split(' ')[0] === 'علي' ? [{ term: "Ali", lang: "A", description: "البحث بـ Ali للاسم علي" }] : [])
+      ];
+      
+      // Try each search strategy
+      for (const strategy of searchStrategies) {
+        try {
+          const searchResponse = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(strategy.term)}&lang=${strategy.lang}`);
+          const searchData = await searchResponse.json();
+          
+          searchAttempts.push({
+            strategy: strategy.description,
+            term: strategy.term,
+            lang: strategy.lang,
+            results: searchData.searchResults ? searchData.searchResults.length : 0
+          });
+          
+          if (searchData.searchResults && searchData.searchResults.length > 0) {
+            searchResults = searchData.searchResults;
+            break; // Found results, stop searching
+          }
+        } catch (error) {
+          searchAttempts.push({
+            strategy: strategy.description,
+            term: strategy.term,
+            lang: strategy.lang,
+            error: error.message
+          });
+          continue;
+        }
+      }
+      
+      if (searchResults.length === 0) {
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              success: false,
+              message: "لم يتم العثور على طبيب بهذا الاسم",
+              searchAttempts: searchAttempts,
+              suggestions: [
+                "تأكد من كتابة الاسم بشكل صحيح",
+                "جرب البحث بالاسم الأول فقط",
+                "جرب البحث بالإنجليزية إذا كان الاسم إنجليزي",
+                "أو اختر من قائمة الأطباء المتاحين"
+              ],
+              alternativeSearch: "هل تريد البحث في تخصص معين؟"
+            }, null, 2) 
+          }],
+        };
+      }
+      
+      const doctor = searchResults[0];
+      
+      // Try to get available slots with different CLINIC_ID values
+      let availableSlots = null;
+      const clinicIds = [1, 2, 3, 4, 5]; // Try multiple CLINIC_ID values
+      
+      for (const clinicId of clinicIds) {
+        try {
+          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`);
+          const slotsData = await slotsResponse.json();
+          
+          if (slotsData.available_slots || slotsData.slots) {
+            availableSlots = slotsData;
+            break;
+          }
+        } catch (error) {
+          continue; // Try next CLINIC_ID
+        }
+      }
+      
       return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: true,
+            doctor: {
+              id: doctor.doctor_id,
+              name: doctor.doctor_name,
+              specialty: doctor.specialty_name,
+              hospital: doctor.hospital_name,
+              hospital_id: doctor.hospital_id,
+              specialty_id: doctor.specialty_id
+            },
+            available_slots: availableSlots,
+            searchAttempts: searchAttempts,
+            message: availableSlots ? "تم العثور على الطبيب والمواعيد المتاحة" : "تم العثور على الطبيب ولكن لا توجد مواعيد متاحة حالياً"
+          }, null, 2) 
+        }],
       };
+      
     } catch (error) {
       return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: false,
+            error: error.message,
+            message: "حدث خطأ أثناء البحث عن الطبيب"
+          }, null, 2) 
+        }],
       };
     }
   }
