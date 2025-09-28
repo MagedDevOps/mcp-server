@@ -337,7 +337,7 @@ server.registerTool(
 server.registerTool(
   "get_doctor_available_slots",
   {
-    description: "Get doctor's next available appointment slots with enhanced logic to find correct clinic ID",
+    description: "Get doctor's next available appointment slots - debug version",
     inputSchema: {
       branchId: z.string().describe("Branch ID (hospital_id from doctor search)"),
       docId: z.string().describe("Doctor ID"),
@@ -347,178 +347,113 @@ server.registerTool(
   },
   async ({ branchId, docId, clinicId, specialtyId }) => {
     try {
-      let availableSlots = null;
+      let availableSlots = [];
       let successfulClinicId = null;
-      let attemptLogs = [];
+      let detailedLogs = [];
       
-      // If clinicId is provided, try it first
+      // Try clinic IDs 1-20 to find the right one
       const clinicIdsToTry = clinicId ? 
-        [clinicId, ...Array.from({length: 10}, (_, i) => (i + 1).toString()).filter(id => id !== clinicId)] :
-        Array.from({length: 10}, (_, i) => (i + 1).toString());
+        [clinicId, ...Array.from({length: 20}, (_, i) => (i + 1).toString()).filter(id => id !== clinicId)] :
+        Array.from({length: 20}, (_, i) => (i + 1).toString());
       
-      // Try different clinic IDs until we find available slots
-      for (const testClinicId of clinicIdsToTry) {
+      for (const testClinicId of clinicIdsToTry.slice(0, 10)) { // Limit to first 10 attempts
         try {
-          console.log(`Trying BRANCH_ID=${branchId}, DOC_ID=${docId}, CLINIC_ID=${testClinicId}`);
+          const apiUrl = `https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${testClinicId}`;
+          console.log(`Testing: ${apiUrl}`);
           
-          const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${testClinicId}`);
+          const response = await fetch(apiUrl);
           const data = await response.json();
           
-          attemptLogs.push({
+          let extractedSlots = [];
+          let logEntry = {
             clinic_id: testClinicId,
             response_status: response.status,
-            has_slots: !!(data.available_slots || data.slots || (data.length && data.length > 0) || (data.Root && data.Root.HOURS_SLOTS)),
-            data_keys: Object.keys(data || {}),
-            has_root_structure: !!(data.Root && data.Root.HOURS_SLOTS),
-            root_keys: data.Root ? Object.keys(data.Root) : null
-          });
+            api_url: apiUrl,
+            raw_response_keys: Object.keys(data || {}),
+            has_root: !!data.Root,
+            error: null
+          };
           
-          // Check if we got slots in the actual API format
-          if (data.Root && data.Root.HOURS_SLOTS && data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW) {
-            // Extract slots from the nested structure
+          // Parse the complex nested structure
+          if (data.Root?.HOURS_SLOTS?.HOURS_SLOTS_ROW) {
             const hourSlots = Array.isArray(data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW) ? 
-              data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW : 
-              [data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW];
+              data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW : [data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW];
             
-            const extractedSlots = [];
-            
-            hourSlots.forEach(hourSlot => {
-              if (hourSlot.SINGLE_HOUR_SLOTS && hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW) {
+            hourSlots.forEach((hourSlot, hourIndex) => {
+              if (hourSlot.SINGLE_HOUR_SLOTS?.SINGLE_HOUR_SLOTS_ROW) {
                 const singleSlots = Array.isArray(hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW) ?
                   hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW :
                   [hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW];
                 
                 singleSlots.forEach(slot => {
-                  // Include available slots (empty or future status)
                   if (slot.SLOT_STATUS === 'empty' || slot.SLOT_STATUS === 'future') {
-                    extractedSlots.push(slot);
+                    extractedSlots.push({
+                      slot_id: slot.ID,
+                      sched_serial: slot.SCHED_SER,
+                      date: slot.ID ? slot.ID.split(' ')[0] : null,
+                      time: slot.ID_AM_PM || slot.ID,
+                      end_time: slot.TIME_SLOT_END,
+                      shift_id: slot.SHIFT_ID || "1",
+                      que_sys_ser: slot.QUE_SYS_SER,
+                      place_id: slot.PLACE_ID,
+                      slot_status: slot.SLOT_STATUS,
+                      doctor_id: docId,
+                      clinic_id: testClinicId,
+                      branch_id: branchId,
+                      specialty_id: specialtyId,
+                      booking_data: {
+                        SCHED_SERIAL: slot.SCHED_SER,
+                        SHIFT_ID: slot.SHIFT_ID || "1",
+                        dateDone: slot.ID, // Will need formatting
+                        EXPECTED_END_DATE: slot.TIME_SLOT_END // Will need formatting
+                      }
+                    });
                   }
                 });
               }
             });
             
-            attemptLogs[attemptLogs.length - 1].extracted_slots_count = extractedSlots.length;
-            attemptLogs[attemptLogs.length - 1].sample_slot = extractedSlots[0] || null;
-            
-            if (extractedSlots.length > 0) {
-              availableSlots = extractedSlots;
-              successfulClinicId = testClinicId;
-              break;
-            }
-          }
-          // Check other possible formats
-          else if (data.available_slots && data.available_slots.length > 0) {
-            availableSlots = data.available_slots;
-            successfulClinicId = testClinicId;
-            break;
-          } else if (data.slots && data.slots.length > 0) {
-            availableSlots = data.slots;
-            successfulClinicId = testClinicId;
-            break;
-          } else if (Array.isArray(data) && data.length > 0) {
-            availableSlots = data;
-            successfulClinicId = testClinicId;
-            break;
-          } else if (data.schedule && Array.isArray(data.schedule) && data.schedule.length > 0) {
-            availableSlots = data.schedule;
-            successfulClinicId = testClinicId;
-            break;
+            logEntry.hour_blocks_count = hourSlots.length;
+            logEntry.extracted_slots_count = extractedSlots.length;
+            logEntry.sample_slot = extractedSlots[0] || null;
           }
           
-          // If we got a successful response but no slots, continue trying
-          if (response.ok && (data.message || data.status)) {
-            continue;
+          detailedLogs.push(logEntry);
+          
+          if (extractedSlots.length > 0) {
+            availableSlots = extractedSlots;
+            successfulClinicId = testClinicId;
+            break; // Found slots, stop trying
           }
           
         } catch (error) {
-          attemptLogs.push({
+          detailedLogs.push({
             clinic_id: testClinicId,
-            error: error.message
+            error: error.message,
+            api_url: `https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${testClinicId}`
           });
-          continue;
         }
       }
-      
-      if (!availableSlots || availableSlots.length === 0) {
-        return {
-          content: [{ 
-            type: "text", 
-            text: JSON.stringify({
-              success: false,
-              message: "لا توجد مواعيد متاحة حالياً لهذا الطبيب",
-              doctor_id: docId,
-              branch_id: branchId,
-              specialty_id: specialtyId,
-              attempt_logs: attemptLogs,
-              suggestion: "قد تحتاج للاتصال بالمستشفى مباشرة أو المحاولة لاحقاً"
-            }, null, 2) 
-          }],
-        };
-      }
-      
-      // Process the slots to ensure consistent format
-      const processedSlots = availableSlots.map((slot, index) => {
-        // Handle the actual API format from the nested structure
-        if (slot.ID && slot.SCHED_SER) {
-          // This is the actual API format
-          return {
-            slot_id: slot.ID,
-            sched_serial: slot.SCHED_SER,
-            date: slot.ID.split(' ')[0], // Extract date from "29/09/2025 15:20:00"
-            time: slot.ID_AM_PM || slot.ID, // Use AM/PM format if available
-            end_time: slot.TIME_SLOT_END,
-            shift_id: slot.SHIFT_ID || "1",
-            que_sys_ser: slot.QUE_SYS_SER,
-            place_id: slot.PLACE_ID,
-            slot_status: slot.SLOT_STATUS,
-            from_excep_sched: slot.FROM_EXCEP_SCHED,
-            doctor_id: docId,
-            clinic_id: successfulClinicId,
-            branch_id: branchId,
-            specialty_id: specialtyId,
-            // Arabic and English time display
-            time_ar: slot.NAME_AR ? slot.ID.split(' ')[0] + ' ' + slot.NAME_AR : null,
-            time_en: slot.NAME_EN ? slot.ID.split(' ')[0] + ' ' + slot.NAME_EN : null,
-            // Keep original slot data for reference
-            original_data: slot
-          };
-        } else {
-          // Handle other possible formats
-          return {
-            slot_id: slot.slot_id || slot.id || slot.schedule_id || `slot_${index + 1}`,
-            sched_serial: slot.sched_serial || slot.schedule_serial || slot.serial || slot.slot_id || `${docId}_${index + 1}`,
-            date: slot.date || slot.appointment_date || slot.schedule_date || new Date().toISOString().split('T')[0],
-            time: slot.time || slot.appointment_time || slot.schedule_time || slot.start_time,
-            end_time: slot.end_time || slot.appointment_end_time,
-            shift_id: slot.shift_id || slot.shift || "1",
-            doctor_id: docId,
-            clinic_id: successfulClinicId,
-            branch_id: branchId,
-            specialty_id: specialtyId,
-            status: slot.status || "available",
-            duration: slot.duration || 20, // Default 20 minutes based on API response
-            // Keep original slot data for reference
-            original_data: slot
-          };
-        }
-      });
       
       return {
         content: [{ 
           type: "text", 
           text: JSON.stringify({
-            success: true,
-            message: `تم العثور على ${processedSlots.length} موعد متاح`,
-            available_slots: processedSlots,
+            success: availableSlots.length > 0,
+            message: availableSlots.length > 0 ? 
+              `تم العثور على ${availableSlots.length} موعد متاح` : 
+              "لم يتم العثور على مواعيد متاحة",
+            available_slots: availableSlots,
             doctor_id: docId,
             clinic_id: successfulClinicId,
             branch_id: branchId,
             specialty_id: specialtyId,
-            total_slots: processedSlots.length,
-            attempt_logs: attemptLogs.slice(0, 3), // Only show first few attempts
-            booking_info: {
-              required_fields: ["SCHED_SERIAL", "SHIFT_ID", "dateDone", "EXPECTED_END_DATE"],
-              note: "استخدم format_appointment_date لتنسيق التاريخ والوقت للحجز"
+            total_slots: availableSlots.length,
+            debug_info: {
+              tested_clinic_ids: detailedLogs.map(log => log.clinic_id),
+              detailed_logs: detailedLogs.slice(0, 5), // Show first 5 attempts
+              successful_clinic_id: successfulClinicId,
+              test_url_example: `https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=17`
             }
           }, null, 2) 
         }],
