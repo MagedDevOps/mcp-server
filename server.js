@@ -148,59 +148,6 @@ server.registerTool(
   }
 );
 
-// OTP APIs
-server.registerTool(
-  "generate_otp",
-  {
-    description: "Generate OTP for mobile number",
-    inputSchema: {
-      mobile: z.string().describe("Mobile number"),
-      source: z.string().optional().describe("Source of request (default: WhatsApp)"),
-    },
-  },
-  async ({ mobile, source = "WhatsApp" }) => {
-    try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(mobile)}&source=${encodeURIComponent(source)}`, {
-        method: 'POST'
-      });
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
-
-server.registerTool(
-  "verify_otp",
-  {
-    description: "Verify OTP for mobile number",
-    inputSchema: {
-      mobile: z.string().describe("Mobile number"),
-      otp: z.string().describe("OTP code to verify"),
-      source: z.string().optional().describe("Source of request (default: WhatsApp)"),
-    },
-  },
-  async ({ mobile, otp, source = "WhatsApp" }) => {
-    try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(mobile)}&otp=${encodeURIComponent(otp)}&source=${encodeURIComponent(source)}`, {
-        method: 'POST'
-      });
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
 // Branches API
 server.registerTool(
@@ -246,84 +193,8 @@ server.registerTool(
   }
 );
 
-server.registerTool(
-  "get_chatbot_menu",
-  {
-    description: "Get chatbot menu items",
-    inputSchema: {
-      lang: z.string().optional().describe("Language code (default: E)"),
-    },
-  },
-  async ({ lang = "E" }) => {
-    try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/menu/0?lang=${lang}`);
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
 // Appointment APIs
-server.registerTool(
-  "get_appointments_count",
-  {
-    description: "Get appointments count for a specific date",
-    inputSchema: {
-      date: z.string().describe("Date in MM-DD-YYYY format (e.g., 08-25-2025)"),
-    },
-  },
-  async ({ date }) => {
-    try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/msgcount?today=${date}`);
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
-
-
-server.registerTool(
-  "get_patient_pending_appointments",
-  {
-    description: "Get patient's pending appointments by phone number",
-    inputSchema: {
-      mobile: z.string().describe("Patient's mobile number (e.g., +96569020323)"),
-    },
-  },
-  async ({ mobile }) => {
-    try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/byphone', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          pat_mobile: mobile
-        })
-      });
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
 server.registerTool(
   "confirm_cancel_appointment",
@@ -780,20 +651,13 @@ app.get('/health', (req, res) => {
       'search_all_combined',
       'search_individual_category',
       
-      // OTP APIs
-      'generate_otp',
-      'verify_otp',
-      
       // Branches API
       'get_branches',
       
       // Chatbot APIs
       'get_chatbot_info',
-      'get_chatbot_menu',
       
       // Appointment APIs
-      'get_appointments_count',
-      'get_patient_pending_appointments',
       'confirm_cancel_appointment',
       
       // Doctor APIs
