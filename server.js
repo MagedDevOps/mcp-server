@@ -148,59 +148,6 @@ server.registerTool(
   }
 );
 
-// OTP APIs
-server.registerTool(
-  "generate_otp",
-  {
-    description: "Generate OTP for mobile number",
-    inputSchema: {
-      mobile: z.string().describe("Mobile number"),
-      source: z.string().optional().describe("Source of request (default: WhatsApp)"),
-    },
-  },
-  async ({ mobile, source = "WhatsApp" }) => {
-    try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(mobile)}&source=${encodeURIComponent(source)}`, {
-        method: 'POST'
-      });
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
-
-server.registerTool(
-  "verify_otp",
-  {
-    description: "Verify OTP for mobile number",
-    inputSchema: {
-      mobile: z.string().describe("Mobile number"),
-      otp: z.string().describe("OTP code to verify"),
-      source: z.string().optional().describe("Source of request (default: WhatsApp)"),
-    },
-  },
-  async ({ mobile, otp, source = "WhatsApp" }) => {
-    try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(mobile)}&otp=${encodeURIComponent(otp)}&source=${encodeURIComponent(source)}`, {
-        method: 'POST'
-      });
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
 // Branches API
 server.registerTool(
@@ -703,9 +650,6 @@ app.get('/health', (req, res) => {
       'search_all_combined',
       'search_individual_category',
       
-      // OTP APIs
-      'generate_otp',
-      'verify_otp',
       
       // Branches API
       'get_branches',
