@@ -64,15 +64,8 @@ server.registerTool(
     try {
       const response = await fetch(`https://salemapi.alsalamhosp.com:447/specialties/${hospitalId}?lang=${lang}`);
       const data = await response.json();
-      
-      // Transform the response to match expected format
-      const specialties = data.specialties.map(specialty => ({
-        specialtyId: specialty.specialty_id.toString(),
-        specialtyName: specialty.specialty_name
-      }));
-      
       return {
-        content: [{ type: "text", text: JSON.stringify(specialties, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
     } catch (error) {
       return {
@@ -89,32 +82,15 @@ server.registerTool(
     inputSchema: {
       hospitalId: z.string().describe("Hospital ID"),
       specialtyId: z.string().describe("Specialty ID"),
-      lang: z.string().optional().describe("Language code (default: A)"),
+      lang: z.string().optional().describe("Language code (default: E)"),
     },
   },
-  async ({ hospitalId, specialtyId, lang = "A" }) => {
+  async ({ hospitalId, specialtyId, lang = "E" }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doctors?branch_id=${hospitalId}&branch_type=1&spec_id=${specialtyId}`);
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/doctors/${hospitalId}/${specialtyId}?lang=${lang}`);
       const data = await response.json();
-      
-      // Transform the response to match expected format
-      let doctors = [];
-      if (data.Root && data.Root.DOCTOR && data.Root.DOCTOR.DOCTOR_ROW) {
-        const doctorRows = Array.isArray(data.Root.DOCTOR.DOCTOR_ROW) 
-          ? data.Root.DOCTOR.DOCTOR_ROW 
-          : [data.Root.DOCTOR.DOCTOR_ROW];
-          
-        doctors = doctorRows.map(doctor => ({
-          doctorId: doctor.EMP_ID,
-          doctorName: doctor.EMP_NAME_AR || doctor.EMP_NAME_EN,
-          specialtyName: doctor.PLACE_AR_NAME || doctor.PLACE_EN_NAME,
-          hospitalId: hospitalId,
-          specialtyId: specialtyId
-        }));
-      }
-      
       return {
-        content: [{ type: "text", text: JSON.stringify(doctors, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
     } catch (error) {
       return {
@@ -149,136 +125,78 @@ server.registerTool(
 );
 
 server.registerTool(
-  "search_doctor_enhanced",
+  "search_individual_category",
   {
-    description: "Enhanced doctor search with multi-language support, better error handling and available slots",
+    description: "Search within individual categories",
     inputSchema: {
       term: z.string().describe("Search term"),
-      lang: z.string().optional().describe("Language code (default: A)"),
+      lang: z.string().optional().describe("Language code (default: E)"),
     },
   },
-  async ({ term, lang = "A" }) => {
+  async ({ term, lang = "E" }) => {
     try {
-      let searchResults = [];
-      let searchAttempts = [];
-      
-      // Try multiple search strategies
-      const searchStrategies = [
-        { term: term, lang: lang, description: "البحث الأصلي" },
-        { term: term, lang: lang === "A" ? "E" : "A", description: "البحث باللغة الأخرى" },
-        { term: term.split(' ')[0], lang: lang, description: "البحث بالاسم الأول فقط" },
-        { term: term.split(' ')[0], lang: lang === "A" ? "E" : "A", description: "البحث بالاسم الأول باللغة الأخرى" },
-        // Additional strategies for Arabic names that might be stored in English
-        { term: term.split(' ')[0], lang: "E", description: "البحث بالاسم الأول بالإنجليزية" },
-        { term: term.split(' ')[0], lang: "A", description: "البحث بالاسم الأول بالعربية" },
-        // Try common name variations for Arabic names stored in English
-        { term: "Bassam", lang: "A", description: "البحث بـ Bassam" },
-        { term: "بسام", lang: "E", description: "البحث بـ بسام بالإنجليزية" },
-        // Try if the first name is a common Arabic name that might be stored in English
-        ...(term.split(' ')[0] === 'بسام' ? [{ term: "Bassam", lang: "A", description: "البحث بـ Bassam للاسم بسام" }] : []),
-        ...(term.split(' ')[0] === 'محمد' ? [{ term: "Mohammed", lang: "A", description: "البحث بـ Mohammed للاسم محمد" }] : []),
-        ...(term.split(' ')[0] === 'أحمد' ? [{ term: "Ahmed", lang: "A", description: "البحث بـ Ahmed للاسم أحمد" }] : []),
-        ...(term.split(' ')[0] === 'علي' ? [{ term: "Ali", lang: "A", description: "البحث بـ Ali للاسم علي" }] : [])
-      ];
-      
-      // Try each search strategy
-      for (const strategy of searchStrategies) {
-        try {
-          const searchResponse = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(strategy.term)}&lang=${strategy.lang}`);
-          const searchData = await searchResponse.json();
-          
-          searchAttempts.push({
-            strategy: strategy.description,
-            term: strategy.term,
-            lang: strategy.lang,
-            results: searchData.searchResults ? searchData.searchResults.length : 0
-          });
-          
-          if (searchData.searchResults && searchData.searchResults.length > 0) {
-            searchResults = searchData.searchResults;
-            break; // Found results, stop searching
-          }
-        } catch (error) {
-          searchAttempts.push({
-            strategy: strategy.description,
-            term: strategy.term,
-            lang: strategy.lang,
-            error: error.message
-          });
-          continue;
-        }
-      }
-      
-      if (searchResults.length === 0) {
-        return {
-          content: [{ 
-            type: "text", 
-            text: JSON.stringify({
-              success: false,
-              message: "لم يتم العثور على طبيب بهذا الاسم",
-              searchAttempts: searchAttempts,
-              suggestions: [
-                "تأكد من كتابة الاسم بشكل صحيح",
-                "جرب البحث بالاسم الأول فقط",
-                "جرب البحث بالإنجليزية إذا كان الاسم إنجليزي",
-                "أو اختر من قائمة الأطباء المتاحين"
-              ],
-              alternativeSearch: "هل تريد البحث في تخصص معين؟"
-            }, null, 2) 
-          }],
-        };
-      }
-      
-      const doctor = searchResults[0];
-      
-      // Try to get available slots with different CLINIC_ID values
-      let availableSlots = null;
-      const clinicIds = [1, 2, 3, 4, 5]; // Try multiple CLINIC_ID values
-      
-      for (const clinicId of clinicIds) {
-        try {
-          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`);
-          const slotsData = await slotsResponse.json();
-          
-          if (slotsData.available_slots || slotsData.slots) {
-            availableSlots = slotsData;
-            break;
-          }
-        } catch (error) {
-          continue; // Try next CLINIC_ID
-        }
-      }
-      
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(term)}&lang=${lang}`);
+      const data = await response.json();
       return {
-        content: [{ 
-          type: "text", 
-          text: JSON.stringify({
-            success: true,
-            doctor: {
-              id: doctor.doctor_id,
-              name: doctor.doctor_name,
-              specialty: doctor.specialty_name,
-              hospital: doctor.hospital_name,
-              hospital_id: doctor.hospital_id,
-              specialty_id: doctor.specialty_id
-            },
-            available_slots: availableSlots,
-            searchAttempts: searchAttempts,
-            message: availableSlots ? "تم العثور على الطبيب والمواعيد المتاحة" : "تم العثور على الطبيب ولكن لا توجد مواعيد متاحة حالياً"
-          }, null, 2) 
-        }],
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-      
     } catch (error) {
       return {
-        content: [{ 
-          type: "text", 
-          text: JSON.stringify({
-            success: false,
-            error: error.message,
-            message: "حدث خطأ أثناء البحث عن الطبيب"
-          }, null, 2) 
-        }],
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// OTP APIs
+server.registerTool(
+  "generate_otp",
+  {
+    description: "Generate OTP for mobile number",
+    inputSchema: {
+      mobile: z.string().describe("Mobile number"),
+      source: z.string().optional().describe("Source of request (default: WhatsApp)"),
+    },
+  },
+  async ({ mobile, source = "WhatsApp" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(mobile)}&source=${encodeURIComponent(source)}`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "verify_otp",
+  {
+    description: "Verify OTP for mobile number",
+    inputSchema: {
+      mobile: z.string().describe("Mobile number"),
+      otp: z.string().describe("OTP code to verify"),
+      source: z.string().optional().describe("Source of request (default: WhatsApp)"),
+    },
+  },
+  async ({ mobile, otp, source = "WhatsApp" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(mobile)}&otp=${encodeURIComponent(otp)}&source=${encodeURIComponent(source)}`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
       };
     }
   }
@@ -293,17 +211,10 @@ server.registerTool(
   },
   async () => {
     try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/hospitals');
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/branches');
       const data = await response.json();
-      
-      // Transform the response to match expected format
-      const branches = data.hospitals.map(hospital => ({
-        branchId: hospital.hospital_id.toString(),
-        branchName: hospital.hospital_name
-      }));
-      
       return {
-        content: [{ type: "text", text: JSON.stringify(branches, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
     } catch (error) {
       return {
@@ -335,7 +246,84 @@ server.registerTool(
   }
 );
 
+server.registerTool(
+  "get_chatbot_menu",
+  {
+    description: "Get chatbot menu items",
+    inputSchema: {
+      lang: z.string().optional().describe("Language code (default: E)"),
+    },
+  },
+  async ({ lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/menu/0?lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
 // Appointment APIs
+server.registerTool(
+  "get_appointments_count",
+  {
+    description: "Get appointments count for a specific date",
+    inputSchema: {
+      date: z.string().describe("Date in MM-DD-YYYY format (e.g., 08-25-2025)"),
+    },
+  },
+  async ({ date }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/msgcount?today=${date}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+
+server.registerTool(
+  "get_patient_pending_appointments",
+  {
+    description: "Get patient's pending appointments by phone number",
+    inputSchema: {
+      mobile: z.string().describe("Patient's mobile number (e.g., +96569020323)"),
+    },
+  },
+  async ({ mobile }) => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/byphone', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pat_mobile: mobile
+        })
+      });
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
 
 server.registerTool(
   "confirm_cancel_appointment",
@@ -368,141 +356,51 @@ server.registerTool(
 server.registerTool(
   "get_doctor_available_slots",
   {
-    description: "Get doctor's next available appointment slots - debug version",
+    description: "Get doctor's next available appointment slots",
     inputSchema: {
-      branchId: z.string().describe("Branch ID (hospital_id from doctor search)"),
+      branchId: z.string().describe("Branch ID"),
       docId: z.string().describe("Doctor ID"),
-      clinicId: z.string().optional().describe("Clinic ID (if known, otherwise will try multiple values)"),
-      specialtyId: z.string().optional().describe("Specialty ID (helps determine correct clinic)"),
+      clinicId: z.string().describe("Clinic ID"),
     },
   },
-  async ({ branchId, docId, clinicId, specialtyId }) => {
+  async ({ branchId, docId, clinicId }) => {
     try {
-      let availableSlots = [];
-      let successfulClinicId = null;
-      let detailedLogs = [];
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${clinicId}`);
+      const data = await response.json();
       
-      // Try clinic IDs 1-20 to find the right one
-      const clinicIdsToTry = clinicId ? 
-        [clinicId, ...Array.from({length: 20}, (_, i) => (i + 1).toString()).filter(id => id !== clinicId)] :
-        Array.from({length: 20}, (_, i) => (i + 1).toString());
-      
-      for (const testClinicId of clinicIdsToTry.slice(0, 10)) { // Limit to first 10 attempts
-        try {
-          const apiUrl = `https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${testClinicId}`;
-          console.log(`Testing: ${apiUrl}`);
-          
-          const response = await fetch(apiUrl);
-          const data = await response.json();
-          
-          let extractedSlots = [];
-          let logEntry = {
-            clinic_id: testClinicId,
-            response_status: response.status,
-            api_url: apiUrl,
-            raw_response_keys: Object.keys(data || {}),
-            has_root: !!data.Root,
-            error: null
-          };
-          
-          // Parse the complex nested structure
-          if (data.Root?.HOURS_SLOTS?.HOURS_SLOTS_ROW) {
-            const hourSlots = Array.isArray(data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW) ? 
-              data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW : [data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW];
-            
-            hourSlots.forEach((hourSlot, hourIndex) => {
-              if (hourSlot.SINGLE_HOUR_SLOTS?.SINGLE_HOUR_SLOTS_ROW) {
-                const singleSlots = Array.isArray(hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW) ?
-                  hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW :
-                  [hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW];
-                
-                singleSlots.forEach(slot => {
-                  if (slot.SLOT_STATUS === 'empty' || slot.SLOT_STATUS === 'future') {
-                    extractedSlots.push({
-                      slot_id: slot.ID,
-                      sched_serial: slot.SCHED_SER,
-                      date: slot.ID ? slot.ID.split(' ')[0] : null,
-                      time: slot.ID_AM_PM || slot.ID,
-                      end_time: slot.TIME_SLOT_END,
-                      shift_id: slot.SHIFT_ID || "1",
-                      que_sys_ser: slot.QUE_SYS_SER,
-                      place_id: slot.PLACE_ID,
-                      slot_status: slot.SLOT_STATUS,
-                      doctor_id: docId,
-                      clinic_id: testClinicId,
-                      branch_id: branchId,
-                      specialty_id: specialtyId,
-                      booking_data: {
-                        SCHED_SERIAL: slot.SCHED_SER,
-                        SHIFT_ID: slot.SHIFT_ID || "1",
-                        dateDone: slot.ID, // Will need formatting
-                        EXPECTED_END_DATE: slot.TIME_SLOT_END // Will need formatting
-                      }
-                    });
-                  }
-                });
-              }
-            });
-            
-            logEntry.hour_blocks_count = hourSlots.length;
-            logEntry.extracted_slots_count = extractedSlots.length;
-            logEntry.sample_slot = extractedSlots[0] || null;
-          }
-          
-          detailedLogs.push(logEntry);
-          
-          if (extractedSlots.length > 0) {
-            availableSlots = extractedSlots;
-            successfulClinicId = testClinicId;
-            break; // Found slots, stop trying
-          }
-          
-        } catch (error) {
-          detailedLogs.push({
-            clinic_id: testClinicId,
-            error: error.message,
-            api_url: `https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${testClinicId}`
-          });
-        }
+      // Process the response to include SCHED_SERIAL for each slot
+      if (data.available_slots || data.slots) {
+        const slots = data.available_slots || data.slots;
+        const processedSlots = slots.map((slot, index) => ({
+          ...slot,
+          sched_serial: slot.sched_serial || slot.slot_id || `slot_${index + 1}`,
+          slot_id: slot.slot_id || `slot_${index + 1}`,
+          date: slot.date || new Date().toISOString().split('T')[0],
+          time: slot.time || slot.appointment_time,
+          doctor_id: docId,
+          clinic_id: clinicId,
+          branch_id: branchId
+        }));
+        
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              available_slots: processedSlots,
+              doctor_id: docId,
+              clinic_id: clinicId,
+              branch_id: branchId
+            }, null, 2) 
+          }],
+        };
       }
       
       return {
-        content: [{ 
-          type: "text", 
-          text: JSON.stringify({
-            success: availableSlots.length > 0,
-            message: availableSlots.length > 0 ? 
-              `تم العثور على ${availableSlots.length} موعد متاح` : 
-              "لم يتم العثور على مواعيد متاحة",
-            available_slots: availableSlots,
-            doctor_id: docId,
-            clinic_id: successfulClinicId,
-            branch_id: branchId,
-            specialty_id: specialtyId,
-            total_slots: availableSlots.length,
-            debug_info: {
-              tested_clinic_ids: detailedLogs.map(log => log.clinic_id),
-              detailed_logs: detailedLogs.slice(0, 5), // Show first 5 attempts
-              successful_clinic_id: successfulClinicId,
-              test_url_example: `https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=17`
-            }
-          }, null, 2) 
-        }],
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-      
     } catch (error) {
       return {
-        content: [{ 
-          type: "text", 
-          text: JSON.stringify({
-            success: false,
-            error: error.message,
-            doctor_id: docId,
-            branch_id: branchId,
-            clinic_id: clinicId,
-            message: "حدث خطأ أثناء البحث عن المواعيد المتاحة"
-          }, null, 2) 
-        }],
+        content: [{ type: "text", text: `Error: ${error.message}` }],
       };
     }
   }
@@ -682,6 +580,27 @@ server.registerTool(
   }
 );
 
+// Pricing API
+server.registerTool(
+  "get_packages_prices",
+  {
+    description: "Get pricing information for packages",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/packagesprices');
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
 
 // Store transports by session ID
 const transports = {};
@@ -756,15 +675,22 @@ app.get('/health', (req, res) => {
       'get_specialties_by_hospital', 
       'get_doctors_by_hospital_specialty',
       'search_all_combined',
-      'search_doctor_enhanced',
+      'search_individual_category',
+      
+      // OTP APIs
+      'generate_otp',
+      'verify_otp',
       
       // Branches API
       'get_branches',
       
       // Chatbot APIs
       'get_chatbot_info',
+      'get_chatbot_menu',
       
       // Appointment APIs
+      'get_appointments_count',
+      'get_patient_pending_appointments',
       'confirm_cancel_appointment',
       
       // Doctor APIs
@@ -773,6 +699,9 @@ app.get('/health', (req, res) => {
       // Patient APIs
       'check_patient_whatsapp_status',
       'submit_appointment',
+      
+      // Pricing API
+      'get_packages_prices',
       
       // Helper tools
       'format_appointment_date'
@@ -807,3 +736,4 @@ process.on('SIGINT', async () => {
   console.log('✅ Server shutdown complete');
   process.exit(0);
 });
+
