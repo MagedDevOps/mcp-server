@@ -16,7 +16,7 @@ system_message_arabic.md
 .env.development.local
 .env.test.local
 .env.production.local
-
+Information/
 # Logs
 logs
 *.log
