@@ -371,8 +371,31 @@ server.registerTool(
             data_keys: Object.keys(data || {})
           });
           
-          // Check if we got slots in various possible formats
-          if (data.available_slots && data.available_slots.length > 0) {
+          // Check if we got slots in the actual API format
+          if (data.Root && data.Root.HOURS_SLOTS && data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW) {
+            // Extract slots from the nested structure
+            const hourSlots = data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW;
+            const extractedSlots = [];
+            
+            hourSlots.forEach(hourSlot => {
+              if (hourSlot.SINGLE_HOUR_SLOTS && hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW) {
+                hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW.forEach(slot => {
+                  // Only include available slots (empty or future status)
+                  if (slot.SLOT_STATUS === 'empty' || slot.SLOT_STATUS === 'future') {
+                    extractedSlots.push(slot);
+                  }
+                });
+              }
+            });
+            
+            if (extractedSlots.length > 0) {
+              availableSlots = extractedSlots;
+              successfulClinicId = testClinicId;
+              break;
+            }
+          }
+          // Check other possible formats
+          else if (data.available_slots && data.available_slots.length > 0) {
             availableSlots = data.available_slots;
             successfulClinicId = testClinicId;
             break;
@@ -423,25 +446,49 @@ server.registerTool(
       
       // Process the slots to ensure consistent format
       const processedSlots = availableSlots.map((slot, index) => {
-        // Handle different slot formats from the API
-        const processedSlot = {
-          slot_id: slot.slot_id || slot.id || slot.schedule_id || `slot_${index + 1}`,
-          sched_serial: slot.sched_serial || slot.schedule_serial || slot.serial || slot.slot_id || `${docId}_${index + 1}`,
-          date: slot.date || slot.appointment_date || slot.schedule_date || new Date().toISOString().split('T')[0],
-          time: slot.time || slot.appointment_time || slot.schedule_time || slot.start_time,
-          end_time: slot.end_time || slot.appointment_end_time,
-          shift_id: slot.shift_id || slot.shift || "1",
-          doctor_id: docId,
-          clinic_id: successfulClinicId,
-          branch_id: branchId,
-          specialty_id: specialtyId,
-          status: slot.status || "available",
-          duration: slot.duration || 30,
-          // Keep original slot data for reference
-          original_data: slot
-        };
-        
-        return processedSlot;
+        // Handle the actual API format from the nested structure
+        if (slot.ID && slot.SCHED_SER) {
+          // This is the actual API format
+          return {
+            slot_id: slot.ID,
+            sched_serial: slot.SCHED_SER,
+            date: slot.ID.split(' ')[0], // Extract date from "29/09/2025 15:20:00"
+            time: slot.ID_AM_PM || slot.ID, // Use AM/PM format if available
+            end_time: slot.TIME_SLOT_END,
+            shift_id: slot.SHIFT_ID || "1",
+            que_sys_ser: slot.QUE_SYS_SER,
+            place_id: slot.PLACE_ID,
+            slot_status: slot.SLOT_STATUS,
+            from_excep_sched: slot.FROM_EXCEP_SCHED,
+            doctor_id: docId,
+            clinic_id: successfulClinicId,
+            branch_id: branchId,
+            specialty_id: specialtyId,
+            // Arabic and English time display
+            time_ar: slot.NAME_AR ? slot.ID.split(' ')[0] + ' ' + slot.NAME_AR : null,
+            time_en: slot.NAME_EN ? slot.ID.split(' ')[0] + ' ' + slot.NAME_EN : null,
+            // Keep original slot data for reference
+            original_data: slot
+          };
+        } else {
+          // Handle other possible formats
+          return {
+            slot_id: slot.slot_id || slot.id || slot.schedule_id || `slot_${index + 1}`,
+            sched_serial: slot.sched_serial || slot.schedule_serial || slot.serial || slot.slot_id || `${docId}_${index + 1}`,
+            date: slot.date || slot.appointment_date || slot.schedule_date || new Date().toISOString().split('T')[0],
+            time: slot.time || slot.appointment_time || slot.schedule_time || slot.start_time,
+            end_time: slot.end_time || slot.appointment_end_time,
+            shift_id: slot.shift_id || slot.shift || "1",
+            doctor_id: docId,
+            clinic_id: successfulClinicId,
+            branch_id: branchId,
+            specialty_id: specialtyId,
+            status: slot.status || "available",
+            duration: slot.duration || 20, // Default 20 minutes based on API response
+            // Keep original slot data for reference
+            original_data: slot
+          };
+        }
       });
       
       return {
