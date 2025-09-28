@@ -249,14 +249,39 @@ server.registerTool(
 server.registerTool(
   "get_chatbot_menu",
   {
-    description: "Get chatbot menu items",
+    description: "Get chatbot main menu items",
     inputSchema: {
-      lang: z.string().optional().describe("Language code (default: E)"),
+      lang: z.string().optional().describe("Language code (A for Arabic, E for English, default: E)"),
     },
   },
   async ({ lang = "E" }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/menu/0?lang=${lang}`);
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/menu?parent_code=0&lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Dynamic menu navigation tool
+server.registerTool(
+  "get_chatbot_submenu",
+  {
+    description: "Get chatbot submenu items based on user choice",
+    inputSchema: {
+      parentCode: z.string().describe("Parent code for the menu level"),
+      lang: z.string().optional().describe("Language code (A for Arabic, E for English, default: E)"),
+    },
+  },
+  async ({ parentCode, lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/menu?parent_code=${parentCode}&lang=${lang}`);
       const data = await response.json();
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -602,108 +627,6 @@ server.registerTool(
   }
 );
 
-// WhatsApp Messaging API
-server.registerTool(
-  "send_whatsapp_message",
-  {
-    description: "Send appointment details via WhatsApp to patient",
-    inputSchema: {
-      mobile: z.string().describe("Patient's mobile number with country code (e.g., +96569020323)"),
-      appointmentDetails: z.object({
-        patientName: z.string().describe("Patient's full name"),
-        doctorName: z.string().describe("Doctor's name"),
-        specialty: z.string().describe("Medical specialty"),
-        branchName: z.string().describe("Hospital branch name"),
-        appointmentDate: z.string().describe("Appointment date (DD/MM/YYYY)"),
-        appointmentTime: z.string().describe("Appointment time (HH:mm)"),
-        appointmentId: z.string().optional().describe("Appointment ID if available"),
-        branchAddress: z.string().optional().describe("Branch address if available"),
-        notes: z.string().optional().describe("Additional notes or instructions")
-      }),
-      language: z.string().optional().describe("Message language (A for Arabic, E for English, default: A)")
-    },
-  },
-  async ({ mobile, appointmentDetails, language = "A" }) => {
-    try {
-      // Format the appointment details message
-      const message = formatAppointmentMessage(appointmentDetails, language);
-      
-      // Send the message via the existing messaging API
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/msg2send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mobile: mobile,
-          message: message,
-          language: language,
-          type: "appointment_confirmation"
-        })
-      });
-      
-      const data = await response.json();
-      return {
-        content: [{ 
-          type: "text", 
-          text: JSON.stringify({
-            success: true,
-            message: "Appointment details sent via WhatsApp",
-            appointmentDetails: appointmentDetails,
-            whatsappResponse: data
-          }, null, 2) 
-        }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error sending WhatsApp message: ${error.message}` }],
-      };
-    }
-  }
-);
-
-// Helper function to format appointment message
-function formatAppointmentMessage(details, language = "A") {
-  if (language === "A") {
-    return `🏥 تأكيد حجز الموعد - مستشفى السلام
-
-👤 المريض: ${details.patientName}
-👨‍⚕️ الطبيب: ${details.doctorName}
-🏥 التخصص: ${details.specialty}
-📍 الفرع: ${details.branchName}
-📅 التاريخ: ${details.appointmentDate}
-🕐 الوقت: ${details.appointmentTime}
-${details.appointmentId ? `🆔 رقم الموعد: ${details.appointmentId}` : ''}
-${details.branchAddress ? `📍 العنوان: ${details.branchAddress}` : ''}
-
-${details.notes ? `📝 ملاحظات: ${details.notes}` : ''}
-
-✅ تم تأكيد حجز موعدك بنجاح!
-⏰ يرجى الحضور قبل الموعد بـ 15 دقيقة
-📞 للاستفسارات: ${details.branchName}
-
-شكراً لاختياركم مستشفى السلام 🏥`;
-  } else {
-    return `🏥 Appointment Confirmation - Al Salam Hospital
-
-👤 Patient: ${details.patientName}
-👨‍⚕️ Doctor: ${details.doctorName}
-🏥 Specialty: ${details.specialty}
-📍 Branch: ${details.branchName}
-📅 Date: ${details.appointmentDate}
-🕐 Time: ${details.appointmentTime}
-${details.appointmentId ? `🆔 Appointment ID: ${details.appointmentId}` : ''}
-${details.branchAddress ? `📍 Address: ${details.branchAddress}` : ''}
-
-${details.notes ? `📝 Notes: ${details.notes}` : ''}
-
-✅ Your appointment has been confirmed successfully!
-⏰ Please arrive 15 minutes before your appointment time
-📞 For inquiries: ${details.branchName}
-
-Thank you for choosing Al Salam Hospital 🏥`;
-  }
-}
 
 // Store transports by session ID
 const transports = {};
@@ -790,6 +713,7 @@ app.get('/health', (req, res) => {
       // Chatbot APIs
       'get_chatbot_info',
       'get_chatbot_menu',
+      'get_chatbot_submenu',
       
       // Appointment APIs
       'get_appointments_count',
@@ -806,8 +730,6 @@ app.get('/health', (req, res) => {
       // Pricing API
       'get_packages_prices',
       
-      // WhatsApp Messaging API
-      'send_whatsapp_message',
       
       // Helper tools
       'format_appointment_date'
