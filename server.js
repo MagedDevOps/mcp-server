@@ -193,53 +193,7 @@ server.registerTool(
   }
 );
 
-server.registerTool(
-  "get_chatbot_menu",
-  {
-    description: "Get chatbot main menu items",
-    inputSchema: {
-      lang: z.string().optional().describe("Language code (A for Arabic, E for English, default: E)"),
-    },
-  },
-  async ({ lang = "E" }) => {
-    try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/menu?parent_code=0&lang=${lang}`);
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
-// Dynamic menu navigation tool
-server.registerTool(
-  "get_chatbot_submenu",
-  {
-    description: "Get chatbot submenu items based on user choice",
-    inputSchema: {
-      parentCode: z.string().describe("Parent code for the menu level"),
-      lang: z.string().optional().describe("Language code (A for Arabic, E for English, default: E)"),
-    },
-  },
-  async ({ parentCode, lang = "E" }) => {
-    try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/menu?parent_code=${parentCode}&lang=${lang}`);
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
 // Appointment APIs
 server.registerTool(
@@ -552,27 +506,6 @@ server.registerTool(
   }
 );
 
-// Pricing API
-server.registerTool(
-  "get_packages_prices",
-  {
-    description: "Get pricing information for packages",
-    inputSchema: {},
-  },
-  async () => {
-    try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/packagesprices');
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
 
 // Store transports by session ID
@@ -656,8 +589,6 @@ app.get('/health', (req, res) => {
       
       // Chatbot APIs
       'get_chatbot_info',
-      'get_chatbot_menu',
-      'get_chatbot_submenu',
       
       // Appointment APIs
       'get_appointments_count',
@@ -671,8 +602,6 @@ app.get('/health', (req, res) => {
       'check_patient_whatsapp_status',
       'submit_appointment',
       
-      // Pricing API
-      'get_packages_prices',
       
       
       // Helper tools
