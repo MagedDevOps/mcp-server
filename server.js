@@ -27,6 +27,127 @@ const server = new McpServer({
   version: "1.0.0" 
 });
 
+// Hospital Management APIs
+server.registerTool(
+  "get_all_hospitals",
+  {
+    description: "Get all hospitals with language support",
+    inputSchema: {
+      lang: z.string().optional().describe("Language code (default: E)"),
+    },
+  },
+  async ({ lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/hospitals?lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "get_specialties_by_hospital",
+  {
+    description: "Get specialties for a specific hospital",
+    inputSchema: {
+      hospitalId: z.string().describe("Hospital ID"),
+      lang: z.string().optional().describe("Language code (default: E)"),
+    },
+  },
+  async ({ hospitalId, lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/specialties/${hospitalId}?lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "get_doctors_by_hospital_specialty",
+  {
+    description: "Get doctors for a specific hospital and specialty",
+    inputSchema: {
+      hospitalId: z.string().describe("Hospital ID"),
+      specialtyId: z.string().describe("Specialty ID"),
+      lang: z.string().optional().describe("Language code (default: E)"),
+    },
+  },
+  async ({ hospitalId, specialtyId, lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/doctors/${hospitalId}/${specialtyId}?lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "search_all_combined",
+  {
+    description: "Search across all categories (hospitals, specialties, doctors) with a single term",
+    inputSchema: {
+      term: z.string().describe("Search term"),
+      lang: z.string().optional().describe("Language code (default: E)"),
+    },
+  },
+  async ({ term, lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/search/all?term=${encodeURIComponent(term)}&lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "search_individual_category",
+  {
+    description: "Search within individual categories",
+    inputSchema: {
+      term: z.string().describe("Search term"),
+      lang: z.string().optional().describe("Language code (default: E)"),
+    },
+  },
+  async ({ term, lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(term)}&lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
 // OTP APIs
 server.registerTool(
   "generate_otp",
@@ -81,6 +202,210 @@ server.registerTool(
   }
 );
 
+// Branches API
+server.registerTool(
+  "get_branches",
+  {
+    description: "Get all hospital branches",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/branches');
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Chatbot APIs
+server.registerTool(
+  "get_chatbot_info",
+  {
+    description: "Get chatbot information",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/chatbotinfo');
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "get_chatbot_menu",
+  {
+    description: "Get chatbot menu items",
+    inputSchema: {
+      lang: z.string().optional().describe("Language code (default: E)"),
+    },
+  },
+  async ({ lang = "E" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/menu/0?lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Appointment APIs
+server.registerTool(
+  "get_appointments_count",
+  {
+    description: "Get appointments count for a specific date",
+    inputSchema: {
+      date: z.string().describe("Date in MM-DD-YYYY format (e.g., 08-25-2025)"),
+    },
+  },
+  async ({ date }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/msgcount?today=${date}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+
+server.registerTool(
+  "get_patient_pending_appointments",
+  {
+    description: "Get patient's pending appointments by phone number",
+    inputSchema: {
+      mobile: z.string().describe("Patient's mobile number (e.g., +96569020323)"),
+    },
+  },
+  async ({ mobile }) => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/byphone', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pat_mobile: mobile
+        })
+      });
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "confirm_cancel_appointment",
+  {
+    description: "Confirm or cancel an appointment",
+    inputSchema: {
+      appointmentId: z.string().describe("Appointment ID"),
+      response: z.string().describe("Response: 1 for confirm, 0 for cancel"),
+    },
+  },
+  async ({ appointmentId, response }) => {
+    try {
+      const response_data = await fetch(`https://salemapi.alsalamhosp.com:447/confcanc?id=${appointmentId}&response=${response}`, {
+        method: 'POST'
+      });
+      const data = await response_data.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Doctor APIs
+
+server.registerTool(
+  "get_doctor_available_slots",
+  {
+    description: "Get doctor's next available appointment slots",
+    inputSchema: {
+      branchId: z.string().describe("Branch ID"),
+      docId: z.string().describe("Doctor ID"),
+      clinicId: z.string().describe("Clinic ID"),
+    },
+  },
+  async ({ branchId, docId, clinicId }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${clinicId}`);
+      const data = await response.json();
+      
+      // Process the response to include SCHED_SERIAL for each slot
+      if (data.available_slots || data.slots) {
+        const slots = data.available_slots || data.slots;
+        const processedSlots = slots.map((slot, index) => ({
+          ...slot,
+          sched_serial: slot.sched_serial || slot.slot_id || `slot_${index + 1}`,
+          slot_id: slot.slot_id || `slot_${index + 1}`,
+          date: slot.date || new Date().toISOString().split('T')[0],
+          time: slot.time || slot.appointment_time,
+          doctor_id: docId,
+          clinic_id: clinicId,
+          branch_id: branchId
+        }));
+        
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              available_slots: processedSlots,
+              doctor_id: docId,
+              clinic_id: clinicId,
+              branch_id: branchId
+            }, null, 2) 
+          }],
+        };
+      }
+      
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
 // Patient APIs
 server.registerTool(
   "check_patient_whatsapp_status",
@@ -113,114 +438,272 @@ server.registerTool(
   }
 );
 
-// Booking Flow Orchestrator
 server.registerTool(
-  "booking_flow",
+  "submit_appointment",
   {
-    description: "Guide booking flow based on channel, mobile, OTP, and names.",
+    description: "Submit a new appointment booking",
     inputSchema: {
-      Channel: z.string().describe("User channel: whatsapp/whatsapp cloud/other"),
-      mobile: z.string().optional().describe("Existing or provided mobile number"),
-      confirmed: z.boolean().optional().describe("Whether the displayed mobile is confirmed by user"),
-      newMobile: z.string().optional().describe("Alternative mobile if not confirmed"),
-      otp: z.string().optional().describe("OTP code when sent"),
-      names: z.array(z.string()).optional().describe("Three-part patient name when not registered")
+      servType: z.string().describe("Service type"),
+      branchId: z.string().describe("Branch ID"),
+      specId: z.string().describe("Specialty ID"),
+      docId: z.string().describe("Doctor ID"),
+      schedSerial: z.string().describe("Schedule serial number"),
+      shiftId: z.string().describe("Shift ID"),
+      dateDone: z.string().describe("Appointment date and time (DD/MM/YYYY HH:mm:ss)"),
+      expectedEndDate: z.string().describe("Expected end date and time (DD/MM/YYYY HH:mm:ss)"),
+      patTel: z.string().describe("Patient telephone number"),
+      telephoneCountryCode: z.string().describe("Telephone country code (e.g., +965)"),
+      patientId: z.string().optional().describe("Patient ID (for registered patients)"),
+      patName: z.string().optional().describe("Patient full name (for non-registered patients)"),
+      gender: z.string().optional().describe("Patient gender (M/F)"),
+      bufferStatus: z.string().optional().describe("Buffer status (default: 1)"),
+      init: z.string().optional().describe("Init value (default: 1)"),
+      computerName: z.string().optional().describe("Computer name (default: whatsapp)"),
     },
   },
-  async ({ Channel, mobile, confirmed, newMobile, otp, names }) => {
+  async ({ 
+    servType, 
+    branchId, 
+    specId, 
+    docId, 
+    schedSerial, 
+    shiftId, 
+    dateDone, 
+    expectedEndDate, 
+    patTel, 
+    telephoneCountryCode, 
+    patientId,
+    patName,
+    gender,
+    bufferStatus = "1",
+    init = "1",
+    computerName = "whatsapp"
+  }) => {
     try {
-      const isWhatsApp = (Channel || '').toLowerCase() === 'whatsapp' || (Channel || '').toLowerCase() === 'whatsapp cloud';
-
-      const checkStatus = async (msisdn) => {
-        const resp = await fetch('https://salemapi.alsalamhosp.com:447/checkPatientWhatsApp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mobile: msisdn })
-        });
-        return await resp.json();
+      // Prepare the appointment data
+      const appointmentData = {
+        SERV_TYPE: servType,
+        buffer_status: bufferStatus,
+        INIT: init,
+        COMPUTER_NAME: computerName,
+        BRANCH_ID: branchId,
+        SPEC_ID: specId,
+        DOC_ID: docId,
+        SCHED_SERIAL: schedSerial,
+        SHIFT_ID: shiftId,
+        dateDone: dateDone,
+        EXPECTED_END_DATE: expectedEndDate,
+        PAT_TEL: patTel,
+        TELEPHONE_COUNTRY_CODE: telephoneCountryCode
       };
 
-      const sendOtp = async (msisdn) => {
-        const resp = await fetch(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(msisdn)}&source=${encodeURIComponent(isWhatsApp ? 'WhatsApp' : 'Other')}`, { method: 'POST' });
-        return await resp.json();
-      };
-
-      const verifyOtp = async (msisdn, code) => {
-        const resp = await fetch(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(msisdn)}&otp=${encodeURIComponent(code)}&source=${encodeURIComponent(isWhatsApp ? 'WhatsApp' : 'Other')}`, { method: 'POST' });
-        return await resp.json();
-      };
-
-      const response = { success: true };
-
-      if (isWhatsApp) {
-        if (!mobile) {
-          return { content: [{ type: 'text', text: JSON.stringify({ success: false, next: 'ask_confirm_mobile', message: 'Please confirm the detected WhatsApp number.' }, null, 2) }] };
-        }
-        if (confirmed === undefined) {
-          return { content: [{ type: 'text', text: JSON.stringify({ success: true, next: 'confirm_mobile', mobile }, null, 2) }] };
-        }
-        if (confirmed === true) {
-          const status = await checkStatus(mobile);
-          response.step = 'select_patient_from_linked';
-          response.mobile = mobile;
-          response.status = status;
-          return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
-        }
-        // confirmed === false
-        if (!newMobile) {
-          return { content: [{ type: 'text', text: JSON.stringify({ success: true, next: 'ask_new_mobile', message: 'Please provide another mobile number.' }, null, 2) }] };
-        }
-        const newStatus = await checkStatus(newMobile);
-        const isRegistered = !!(newStatus && (newStatus.registered || newStatus.isRegistered || newStatus.status === 'registered'));
-        if (isRegistered) {
-          if (!otp) {
-            const sent = await sendOtp(newMobile);
-            return { content: [{ type: 'text', text: JSON.stringify({ success: true, next: 'enter_otp', mobile: newMobile, otp_sent: sent }, null, 2) }] };
-          }
-          const verified = await verifyOtp(newMobile, otp);
-          const ok = !!(verified && (verified.valid || verified.verified || verified.status === 'verified'));
-          if (!ok) {
-            return { content: [{ type: 'text', text: JSON.stringify({ success: false, next: 'enter_otp', message: 'Invalid OTP. Please try again.' }, null, 2) }] };
-          }
-          const finalStatus = await checkStatus(newMobile);
-          return { content: [{ type: 'text', text: JSON.stringify({ success: true, step: 'select_patient_from_linked', mobile: newMobile, status: finalStatus }, null, 2) }] };
-        } else {
-          if (!names || names.length < 3) {
-            return { content: [{ type: 'text', text: JSON.stringify({ success: true, next: 'ask_three_names', message: 'Provide first, second, and last names.' }, null, 2) }] };
-          }
-          return { content: [{ type: 'text', text: JSON.stringify({ success: true, step: 'proceed_with_new_patient', mobile: newMobile, names }, null, 2) }] };
-        }
-      } else {
-        // Other channels
-        if (!mobile) {
-          return { content: [{ type: 'text', text: JSON.stringify({ success: true, next: 'ask_mobile', message: 'Please provide a mobile number.' }, null, 2) }] };
-        }
-        const status = await checkStatus(mobile);
-        const isRegistered = !!(status && (status.registered || status.isRegistered || status.status === 'registered'));
-        if (isRegistered) {
-          if (!otp) {
-            const sent = await sendOtp(mobile);
-            return { content: [{ type: 'text', text: JSON.stringify({ success: true, next: 'enter_otp', mobile, otp_sent: sent }, null, 2) }] };
-          }
-          const verified = await verifyOtp(mobile, otp);
-          const ok = !!(verified && (verified.valid || verified.verified || verified.status === 'verified'));
-          if (!ok) {
-            return { content: [{ type: 'text', text: JSON.stringify({ success: false, next: 'enter_otp', message: 'Invalid OTP. Please try again.' }, null, 2) }] };
-          }
-          const finalStatus = await checkStatus(mobile);
-          return { content: [{ type: 'text', text: JSON.stringify({ success: true, step: 'select_patient_from_linked', mobile, status: finalStatus }, null, 2) }] };
-        }
-        // not registered
-        if (!names || names.length < 3) {
-          return { content: [{ type: 'text', text: JSON.stringify({ success: true, next: 'ask_three_names', message: 'Provide first, second, and last names.' }, null, 2) }] };
-        }
-        return { content: [{ type: 'text', text: JSON.stringify({ success: true, step: 'proceed_with_new_patient', mobile, names }, null, 2) }] };
+      // Add patient-specific data
+      if (patientId) {
+        // Registered patient
+        appointmentData.PATIENT_ID = patientId;
+      } else if (patName && gender) {
+        // Non-registered patient
+        appointmentData.PAT_NAME = patName;
+        appointmentData.GENDER = gender;
       }
+
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/submit_appointment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(appointmentData)
+      });
+      
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
     } catch (error) {
-      return { content: [{ type: 'text', text: `Error: ${error.message}` }] };
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
     }
   }
 );
+
+// Helper tool for date formatting
+server.registerTool(
+  "format_appointment_date",
+  {
+    description: "Format appointment date and time for API submission",
+    inputSchema: {
+      date: z.string().describe("Date in YYYY-MM-DD format"),
+      time: z.string().describe("Time in HH:mm format"),
+      duration: z.number().optional().describe("Appointment duration in minutes (default: 30)"),
+    },
+  },
+  async ({ date, time, duration = 30 }) => {
+    try {
+      // Parse the date and time
+      const [year, month, day] = date.split('-');
+      const [hours, minutes] = time.split(':');
+      
+      // Create start date
+      const startDate = new Date(year, month - 1, day, parseInt(hours), parseInt(minutes));
+      
+      // Create end date (add duration)
+      const endDate = new Date(startDate.getTime() + (duration * 60000));
+      
+      // Format for API (DD/MM/YYYY HH:mm:ss)
+      const formatDate = (date) => {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+      };
+      
+      const result = {
+        dateDone: formatDate(startDate),
+        expectedEndDate: formatDate(endDate),
+        originalDate: date,
+        originalTime: time,
+        duration: duration
+      };
+      
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Pricing API
+server.registerTool(
+  "get_packages_prices",
+  {
+    description: "Get pricing information for packages",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/packagesprices');
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// WhatsApp Messaging API
+server.registerTool(
+  "send_whatsapp_message",
+  {
+    description: "Send appointment details via WhatsApp to patient",
+    inputSchema: {
+      mobile: z.string().describe("Patient's mobile number with country code (e.g., +96569020323)"),
+      appointmentDetails: z.object({
+        patientName: z.string().describe("Patient's full name"),
+        doctorName: z.string().describe("Doctor's name"),
+        specialty: z.string().describe("Medical specialty"),
+        branchName: z.string().describe("Hospital branch name"),
+        appointmentDate: z.string().describe("Appointment date (DD/MM/YYYY)"),
+        appointmentTime: z.string().describe("Appointment time (HH:mm)"),
+        appointmentId: z.string().optional().describe("Appointment ID if available"),
+        branchAddress: z.string().optional().describe("Branch address if available"),
+        notes: z.string().optional().describe("Additional notes or instructions")
+      }),
+      language: z.string().optional().describe("Message language (A for Arabic, E for English, default: A)")
+    },
+  },
+  async ({ mobile, appointmentDetails, language = "A" }) => {
+    try {
+      // Format the appointment details message
+      const message = formatAppointmentMessage(appointmentDetails, language);
+      
+      // Send the message via the existing messaging API
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/msg2send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mobile: mobile,
+          message: message,
+          language: language,
+          type: "appointment_confirmation"
+        })
+      });
+      
+      const data = await response.json();
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: true,
+            message: "Appointment details sent via WhatsApp",
+            appointmentDetails: appointmentDetails,
+            whatsappResponse: data
+          }, null, 2) 
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error sending WhatsApp message: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Helper function to format appointment message
+function formatAppointmentMessage(details, language = "A") {
+  if (language === "A") {
+    return `🏥 تأكيد حجز الموعد - مستشفى السلام
+
+👤 المريض: ${details.patientName}
+👨‍⚕️ الطبيب: ${details.doctorName}
+🏥 التخصص: ${details.specialty}
+📍 الفرع: ${details.branchName}
+📅 التاريخ: ${details.appointmentDate}
+🕐 الوقت: ${details.appointmentTime}
+${details.appointmentId ? `🆔 رقم الموعد: ${details.appointmentId}` : ''}
+${details.branchAddress ? `📍 العنوان: ${details.branchAddress}` : ''}
+
+${details.notes ? `📝 ملاحظات: ${details.notes}` : ''}
+
+✅ تم تأكيد حجز موعدك بنجاح!
+⏰ يرجى الحضور قبل الموعد بـ 15 دقيقة
+📞 للاستفسارات: ${details.branchName}
+
+شكراً لاختياركم مستشفى السلام 🏥`;
+  } else {
+    return `🏥 Appointment Confirmation - Al Salam Hospital
+
+👤 Patient: ${details.patientName}
+👨‍⚕️ Doctor: ${details.doctorName}
+🏥 Specialty: ${details.specialty}
+📍 Branch: ${details.branchName}
+📅 Date: ${details.appointmentDate}
+🕐 Time: ${details.appointmentTime}
+${details.appointmentId ? `🆔 Appointment ID: ${details.appointmentId}` : ''}
+${details.branchAddress ? `📍 Address: ${details.branchAddress}` : ''}
+
+${details.notes ? `📝 Notes: ${details.notes}` : ''}
+
+✅ Your appointment has been confirmed successfully!
+⏰ Please arrive 15 minutes before your appointment time
+📞 For inquiries: ${details.branchName}
+
+Thank you for choosing Al Salam Hospital 🏥`;
+  }
+}
 
 // Store transports by session ID
 const transports = {};
@@ -290,15 +773,44 @@ app.get('/health', (req, res) => {
     server: 'AlSalamHospitalMCP',
     version: '1.0.0',
     tools: [
+      // Hospital Management APIs
+      'get_all_hospitals',
+      'get_specialties_by_hospital', 
+      'get_doctors_by_hospital_specialty',
+      'search_all_combined',
+      'search_individual_category',
+      
       // OTP APIs
       'generate_otp',
       'verify_otp',
       
+      // Branches API
+      'get_branches',
+      
+      // Chatbot APIs
+      'get_chatbot_info',
+      'get_chatbot_menu',
+      
+      // Appointment APIs
+      'get_appointments_count',
+      'get_patient_pending_appointments',
+      'confirm_cancel_appointment',
+      
+      // Doctor APIs
+      'get_doctor_available_slots',
+      
       // Patient APIs
       'check_patient_whatsapp_status',
+      'submit_appointment',
       
-      // Flow Orchestrator
-      'booking_flow'
+      // Pricing API
+      'get_packages_prices',
+      
+      // WhatsApp Messaging API
+      'send_whatsapp_message',
+      
+      // Helper tools
+      'format_appointment_date'
     ]
   });
 });
