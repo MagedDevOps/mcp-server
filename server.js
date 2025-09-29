@@ -242,7 +242,15 @@ server.registerTool(
       
       for (const clinicId of clinicIds) {
         try {
-          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`);
+          // Add timeout to prevent hanging
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+          
+          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`, {
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
           const slotsData = await slotsResponse.json();
           
           // Check if we got valid slots data (not an error)
@@ -251,6 +259,7 @@ server.registerTool(
             break;
           }
         } catch (error) {
+          console.log(`Failed to get slots for CLINIC_ID ${clinicId}:`, error.message);
           continue; // Try next CLINIC_ID
         }
       }
@@ -584,7 +593,15 @@ server.registerTool(
       
       for (const clinicId of clinicIds) {
         try {
-          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${clinicId}`);
+          // Add timeout to prevent hanging
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+          
+          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${clinicId}`, {
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
           const slotsData = await slotsResponse.json();
           
           if (slotsData.Root && slotsData.Root.HOURS_SLOTS) {
@@ -592,6 +609,7 @@ server.registerTool(
             break;
           }
         } catch (error) {
+          console.log(`Failed to get slots for CLINIC_ID ${clinicId}:`, error.message);
           continue;
         }
       }
@@ -612,7 +630,8 @@ server.registerTool(
             available_slots: availableSlots,
             message: availableSlots ? 
               `تم اختيار د. ${selectedDoctor.doctor_name} والمواعيد المتاحة. الموعد التالي المتاح: ${availableSlots.Root.next_available_time}` : 
-              "تم اختيار الطبيب ولكن لا توجد مواعيد متاحة حالياً"
+              `تم اختيار د. ${selectedDoctor.doctor_name} ولكن لا توجد مواعيد متاحة حالياً. يرجى المحاولة لاحقاً أو اختيار طبيب آخر.`,
+            error: availableSlots ? null : "No available slots found or timeout occurred"
           }, null, 2) 
         }],
       };
