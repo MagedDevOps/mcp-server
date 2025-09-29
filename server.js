@@ -839,27 +839,6 @@ server.registerTool(
   }
 );
 
-// Pricing API
-server.registerTool(
-  "get_packages_prices",
-  {
-    description: "Get pricing information for packages",
-    inputSchema: {},
-  },
-  async () => {
-    try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/packagesprices');
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
 
 // Store transports by session ID
@@ -956,9 +935,6 @@ app.get('/health', (req, res) => {
       // OTP Verification APIs
       'generate_otp',
       'verify_otp',
-      
-      // Pricing API
-      'get_packages_prices',
       
       // Helper tools
       'format_appointment_date',
