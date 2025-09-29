@@ -666,7 +666,16 @@ server.registerTool(
   },
   async ({ mobile, source = "WhatsApp" }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(mobile)}&source=${encodeURIComponent(source)}`);
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/otp/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mobile: mobile,
+          source: source
+        })
+      });
       const data = await response.json();
       return {
         content: [{ 
@@ -699,7 +708,16 @@ server.registerTool(
   },
   async ({ mobile, otpCode, source = "WhatsApp" }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(mobile)}&source=${encodeURIComponent(source)}`);
+      const response = await fetch('https://salemapi.alsalamhosp.com:447/otp/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mobile: mobile,
+          source: source
+        })
+      });
       const data = await response.json();
       
       // Check if the OTP matches
