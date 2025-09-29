@@ -100,29 +100,6 @@ server.registerTool(
   }
 );
 
-server.registerTool(
-  "search_all_combined",
-  {
-    description: "Search across all categories (hospitals, specialties, doctors) with a single term",
-    inputSchema: {
-      term: z.string().describe("Search term"),
-      lang: z.string().optional().describe("Language code (default: E)"),
-    },
-  },
-  async ({ term, lang = "E" }) => {
-    try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/search/all?term=${encodeURIComponent(term)}&lang=${lang}`);
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-      };
-    }
-  }
-);
 
 server.registerTool(
   "search_individual_category",
@@ -242,15 +219,7 @@ server.registerTool(
       
       for (const clinicId of clinicIds) {
         try {
-          // Add timeout to prevent hanging
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-          
-          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`, {
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
+          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`);
           const slotsData = await slotsResponse.json();
           
           // Check if we got valid slots data (not an error)
@@ -259,7 +228,6 @@ server.registerTool(
             break;
           }
         } catch (error) {
-          console.log(`Failed to get slots for CLINIC_ID ${clinicId}:`, error.message);
           continue; // Try next CLINIC_ID
         }
       }
@@ -593,15 +561,7 @@ server.registerTool(
       
       for (const clinicId of clinicIds) {
         try {
-          // Add timeout to prevent hanging
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-          
-          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${clinicId}`, {
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
+          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${clinicId}`);
           const slotsData = await slotsResponse.json();
           
           if (slotsData.Root && slotsData.Root.HOURS_SLOTS) {
@@ -609,7 +569,6 @@ server.registerTool(
             break;
           }
         } catch (error) {
-          console.log(`Failed to get slots for CLINIC_ID ${clinicId}:`, error.message);
           continue;
         }
       }
@@ -630,8 +589,7 @@ server.registerTool(
             available_slots: availableSlots,
             message: availableSlots ? 
               `تم اختيار د. ${selectedDoctor.doctor_name} والمواعيد المتاحة. الموعد التالي المتاح: ${availableSlots.Root.next_available_time}` : 
-              `تم اختيار د. ${selectedDoctor.doctor_name} ولكن لا توجد مواعيد متاحة حالياً. يرجى المحاولة لاحقاً أو اختيار طبيب آخر.`,
-            error: availableSlots ? null : "No available slots found or timeout occurred"
+              "تم اختيار الطبيب ولكن لا توجد مواعيد متاحة حالياً"
           }, null, 2) 
         }],
       };
@@ -771,108 +729,6 @@ server.registerTool(
   }
 );
 
-// WhatsApp Messaging API
-server.registerTool(
-  "send_whatsapp_message",
-  {
-    description: "Send appointment details via WhatsApp to patient",
-    inputSchema: {
-      mobile: z.string().describe("Patient's mobile number with country code (e.g., +96569020323)"),
-      appointmentDetails: z.object({
-        patientName: z.string().describe("Patient's full name"),
-        doctorName: z.string().describe("Doctor's name"),
-        specialty: z.string().describe("Medical specialty"),
-        branchName: z.string().describe("Hospital branch name"),
-        appointmentDate: z.string().describe("Appointment date (DD/MM/YYYY)"),
-        appointmentTime: z.string().describe("Appointment time (HH:mm)"),
-        appointmentId: z.string().optional().describe("Appointment ID if available"),
-        branchAddress: z.string().optional().describe("Branch address if available"),
-        notes: z.string().optional().describe("Additional notes or instructions")
-      }),
-      language: z.string().optional().describe("Message language (A for Arabic, E for English, default: A)")
-    },
-  },
-  async ({ mobile, appointmentDetails, language = "A" }) => {
-    try {
-      // Format the appointment details message
-      const message = formatAppointmentMessage(appointmentDetails, language);
-      
-      // Send the message via the existing messaging API
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/msg2send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mobile: mobile,
-          message: message,
-          language: language,
-          type: "appointment_confirmation"
-        })
-      });
-      
-      const data = await response.json();
-      return {
-        content: [{ 
-          type: "text", 
-          text: JSON.stringify({
-            success: true,
-            message: "Appointment details sent via WhatsApp",
-            appointmentDetails: appointmentDetails,
-            whatsappResponse: data
-          }, null, 2) 
-        }],
-      };
-    } catch (error) {
-      return {
-        content: [{ type: "text", text: `Error sending WhatsApp message: ${error.message}` }],
-      };
-    }
-  }
-);
-
-// Helper function to format appointment message
-function formatAppointmentMessage(details, language = "A") {
-  if (language === "A") {
-    return `🏥 تأكيد حجز الموعد - مستشفى السلام
-
-👤 المريض: ${details.patientName}
-👨‍⚕️ الطبيب: ${details.doctorName}
-🏥 التخصص: ${details.specialty}
-📍 الفرع: ${details.branchName}
-📅 التاريخ: ${details.appointmentDate}
-🕐 الوقت: ${details.appointmentTime}
-${details.appointmentId ? `🆔 رقم الموعد: ${details.appointmentId}` : ''}
-${details.branchAddress ? `📍 العنوان: ${details.branchAddress}` : ''}
-
-${details.notes ? `📝 ملاحظات: ${details.notes}` : ''}
-
-✅ تم تأكيد حجز موعدك بنجاح!
-⏰ يرجى الحضور قبل الموعد بـ 15 دقيقة
-📞 للاستفسارات: ${details.branchName}
-
-شكراً لاختياركم مستشفى السلام 🏥`;
-  } else {
-    return `🏥 Appointment Confirmation - Al Salam Hospital
-
-👤 Patient: ${details.patientName}
-👨‍⚕️ Doctor: ${details.doctorName}
-🏥 Specialty: ${details.specialty}
-📍 Branch: ${details.branchName}
-📅 Date: ${details.appointmentDate}
-🕐 Time: ${details.appointmentTime}
-${details.appointmentId ? `🆔 Appointment ID: ${details.appointmentId}` : ''}
-${details.branchAddress ? `📍 Address: ${details.branchAddress}` : ''}
-
-${details.notes ? `📝 Notes: ${details.notes}` : ''}
-
-✅ Your appointment has been confirmed successfully!
-⏰ Please arrive 15 minutes before your appointment time
-📞 For inquiries: ${details.branchName}
-
-Thank you for choosing Al Salam Hospital 🏥`;
-  }
-}
 
 // Store transports by session ID
 const transports = {};
@@ -946,7 +802,6 @@ app.get('/health', (req, res) => {
       'get_all_hospitals',
       'get_specialties_by_hospital', 
       'get_doctors_by_hospital_specialty',
-      'search_all_combined',
       'search_individual_category',
       
       // Branches API
@@ -967,9 +822,6 @@ app.get('/health', (req, res) => {
       
       // Pricing API
       'get_packages_prices',
-      
-      // WhatsApp Messaging API
-      'send_whatsapp_message',
       
       // Helper tools
       'format_appointment_date',
