@@ -665,7 +665,9 @@ server.registerTool(
   },
   async ({ mobile }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(mobile)}&source=WhatsApp`, {
+      // Remove + sign from mobile number as API expects format without +
+      const cleanMobile = mobile.startsWith('+') ? mobile.substring(1) : mobile;
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(cleanMobile)}&source=WhatsApp`, {
         method: 'POST'
       });
       const data = await response.json();
@@ -699,7 +701,9 @@ server.registerTool(
   },
   async ({ mobile, otpCode }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(mobile)}&source=WhatsApp`, {
+      // Remove + sign from mobile number as API expects format without +
+      const cleanMobile = mobile.startsWith('+') ? mobile.substring(1) : mobile;
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(cleanMobile)}&source=WhatsApp`, {
         method: 'POST'
       });
       const data = await response.json();
