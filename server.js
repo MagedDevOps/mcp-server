@@ -207,16 +207,17 @@ server.registerTool(
       
       const doctor = searchResults[0];
       
-      // Try to get available slots with different CLINIC_ID values
+      // Try to get available slots using specialty_id as CLINIC_ID
       let availableSlots = null;
-      const clinicIds = [1, 2, 3, 4, 5]; // Try multiple CLINIC_ID values
+      const clinicIds = [doctor.specialty_id, 1, 2, 3, 4, 5]; // Try specialty_id first, then fallback values
       
       for (const clinicId of clinicIds) {
         try {
           const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`);
           const slotsData = await slotsResponse.json();
           
-          if (slotsData.available_slots || slotsData.slots) {
+          // Check if we got valid slots data (not an error)
+          if (slotsData.Root && slotsData.Root.HOURS_SLOTS) {
             availableSlots = slotsData;
             break;
           }
@@ -240,7 +241,9 @@ server.registerTool(
             },
             available_slots: availableSlots,
             searchAttempts: searchAttempts,
-            message: availableSlots ? "تم العثور على الطبيب والمواعيد المتاحة" : "تم العثور على الطبيب ولكن لا توجد مواعيد متاحة حالياً"
+            message: availableSlots ? 
+              `تم العثور على الطبيب والمواعيد المتاحة. الموعد التالي المتاح: ${availableSlots.Root.next_available_time}` : 
+              "تم العثور على الطبيب ولكن لا توجد مواعيد متاحة حالياً"
           }, null, 2) 
         }],
       };
@@ -502,6 +505,59 @@ server.registerTool(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Helper tool to get available slots for a specific doctor
+server.registerTool(
+  "get_doctor_slots_by_specialty",
+  {
+    description: "Get available slots for a doctor using specialty_id as CLINIC_ID",
+    inputSchema: {
+      hospitalId: z.string().describe("Hospital ID"),
+      doctorId: z.string().describe("Doctor ID"),
+      specialtyId: z.string().describe("Specialty ID (used as CLINIC_ID)"),
+    },
+  },
+  async ({ hospitalId, doctorId, specialtyId }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${hospitalId}&DOC_ID=${doctorId}&CLINIC_ID=${specialtyId}`);
+      const data = await response.json();
+      
+      if (data.Root && data.Root.HOURS_SLOTS) {
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              success: true,
+              available_slots: data,
+              next_available_time: data.Root.next_available_time,
+              doctor_id: doctorId,
+              hospital_id: hospitalId,
+              specialty_id: specialtyId
+            }, null, 2) 
+          }],
+        };
+      } else {
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              success: false,
+              message: "No available slots found",
+              error: data.error || "Unknown error",
+              doctor_id: doctorId,
+              hospital_id: hospitalId,
+              specialty_id: specialtyId
+            }, null, 2) 
+          }],
+        };
+      }
     } catch (error) {
       return {
         content: [{ type: "text", text: `Error: ${error.message}` }],
@@ -786,7 +842,8 @@ app.get('/health', (req, res) => {
       'send_whatsapp_message',
       
       // Helper tools
-      'format_appointment_date'
+      'format_appointment_date',
+      'get_doctor_slots_by_specialty'
     ]
   });
 });
