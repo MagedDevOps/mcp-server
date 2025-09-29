@@ -347,9 +347,9 @@ server.registerTool(
 // Doctor APIs
 
 server.registerTool(
-  "get_doctor_available_slots",
+  "get_doctor_available_days",
   {
-    description: "Get doctor's next available appointment slots",
+    description: "Get available days for a specific doctor",
     inputSchema: {
       branchId: z.string().describe("Branch ID"),
       docId: z.string().describe("Doctor ID"),
@@ -358,42 +358,98 @@ server.registerTool(
   },
   async ({ branchId, docId, clinicId }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&DOC_ID=${docId}&CLINIC_ID=${clinicId}`);
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&CLINIC_ID=${clinicId}&DOC_ID=${docId}&SCHEDULE_DAYS_ONLY=1&mobileapp_whatsapp=2`);
       const data = await response.json();
       
-      // Process the response to include SCHED_SERIAL for each slot
-      if (data.available_slots || data.slots) {
-        const slots = data.available_slots || data.slots;
-        const processedSlots = slots.map((slot, index) => ({
-          ...slot,
-          sched_serial: slot.sched_serial || slot.slot_id || `slot_${index + 1}`,
-          slot_id: slot.slot_id || `slot_${index + 1}`,
-          date: slot.date || new Date().toISOString().split('T')[0],
-          time: slot.time || slot.appointment_time,
-          doctor_id: docId,
-          clinic_id: clinicId,
-          branch_id: branchId
+      // Process the response to extract available days
+      let availableDays = [];
+      if (data.Root && data.Root.DOC_DAYS && data.Root.DOC_DAYS.DOC_DAYS_ROW) {
+        availableDays = data.Root.DOC_DAYS.DOC_DAYS_ROW.map(day => ({
+          schedule_date: day.SCHEDULE_DATE,
+          day_number: day.DAYNUMBER,
+          day_name_ar: day.DAYNAME_AR,
+          day_name_en: day.DAYNAME_EN,
+          emp_id: day.EMP_ID
         }));
-        
-        return {
-          content: [{ 
-            type: "text", 
-            text: JSON.stringify({
-              available_slots: processedSlots,
-              doctor_id: docId,
-              clinic_id: clinicId,
-              branch_id: branchId
-            }, null, 2) 
-          }],
-        };
       }
       
       return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: true,
+            doctor_id: docId,
+            branch_id: branchId,
+            clinic_id: clinicId,
+            available_days: availableDays,
+            raw_response: data
+          }, null, 2) 
+        }],
       };
     } catch (error) {
       return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
+        content: [{ type: "text", text: `Error getting doctor available days: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "get_doctor_available_slots",
+  {
+    description: "Get available time slots for a specific doctor on a specific date",
+    inputSchema: {
+      branchId: z.string().describe("Branch ID"),
+      docId: z.string().describe("Doctor ID"),
+      clinicId: z.string().describe("Clinic ID"),
+      selectedDate: z.string().describe("Selected date in DD/MM/YYYY format (e.g., 13/10/2025)"),
+    },
+  },
+  async ({ branchId, docId, clinicId, selectedDate }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&CLINIC_ID=${clinicId}&DOC_ID=${docId}&SCHEDULE_DAYS_ONLY=0&Web_FromDate=${selectedDate}&mobileapp_whatsapp=2`);
+      const data = await response.json();
+      
+      // Process the response to include SCHED_SERIAL for each slot
+      let processedSlots = [];
+      if (data.Root && data.Root.HOURS_SLOTS && data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW) {
+        processedSlots = data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW.map(hourSlot => {
+          if (hourSlot.SINGLE_HOUR_SLOTS && hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW) {
+            return hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW.map(slot => ({
+              time: slot.NAME_AR,
+              time_en: slot.NAME_EN,
+              id: slot.ID,
+              id_am_pm: slot.ID_AM_PM,
+              status: slot.SLOT_STATUS,
+              schedule_serial: slot.SCHED_SER,
+              place_id: slot.PLACE_ID,
+              shift_id: slot.SHIFT_ID
+            }));
+          }
+          return [];
+        }).flat();
+      }
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: true,
+            doctor_id: docId,
+            branch_id: branchId,
+            clinic_id: clinicId,
+            selected_date: selectedDate,
+            available_slots: processedSlots,
+            next_available_time: data.Root?.next_available_time || null,
+            next_available_schedule_serial: data.Root?.NEXT_AVAILABLE_SCHED_SER || null,
+            mobile_app_times: data.Root?.MOBILE_APP_TIMES?.MOBILE_APP_TIMES_ROW || null,
+            raw_response: data
+          }, null, 2) 
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error getting doctor slots: ${error.message}` }],
       };
     }
   }
@@ -890,6 +946,7 @@ app.get('/health', (req, res) => {
       'confirm_cancel_appointment',
       
       // Doctor APIs
+      'get_doctor_available_days',
       'get_doctor_available_slots',
       
       // Patient APIs
