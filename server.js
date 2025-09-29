@@ -205,6 +205,35 @@ server.registerTool(
         };
       }
       
+      // Handle multiple doctors
+      if (searchResults.length > 1) {
+        // Return list of doctors for user selection
+        const doctorsList = searchResults.map((doctor, index) => ({
+          id: doctor.doctor_id,
+          name: doctor.doctor_name,
+          specialty: doctor.specialty_name,
+          hospital: doctor.hospital_name,
+          hospital_id: doctor.hospital_id,
+          specialty_id: doctor.specialty_id,
+          index: index + 1
+        }));
+        
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              success: true,
+              multiple_doctors: true,
+              doctors: doctorsList,
+              total_count: searchResults.length,
+              searchAttempts: searchAttempts,
+              message: `تم العثور على ${searchResults.length} أطباء بهذا الاسم. يرجى اختيار الطبيب المطلوب من القائمة.`
+            }, null, 2) 
+          }],
+        };
+      }
+      
+      // Handle single doctor - get available slots
       const doctor = searchResults[0];
       
       // Try to get available slots using specialty_id as CLINIC_ID
@@ -231,6 +260,7 @@ server.registerTool(
           type: "text", 
           text: JSON.stringify({
             success: true,
+            single_doctor: true,
             doctor: {
               id: doctor.doctor_id,
               name: doctor.doctor_name,
@@ -504,6 +534,87 @@ server.registerTool(
       const data = await response.json();
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Helper tool to select a specific doctor from multiple results
+server.registerTool(
+  "select_doctor_from_list",
+  {
+    description: "Select a specific doctor from multiple search results and get their available slots",
+    inputSchema: {
+      doctorIndex: z.number().describe("Index of the selected doctor (1-based)"),
+      searchResults: z.array(z.object({
+        doctor_id: z.string(),
+        doctor_name: z.string(),
+        specialty_id: z.string(),
+        specialty_name: z.string(),
+        hospital_id: z.string(),
+        hospital_name: z.string()
+      })).describe("Array of doctors from search results")
+    },
+  },
+  async ({ doctorIndex, searchResults }) => {
+    try {
+      // Validate index
+      if (doctorIndex < 1 || doctorIndex > searchResults.length) {
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              success: false,
+              message: `رقم غير صحيح. يرجى اختيار رقم بين 1 و ${searchResults.length}`,
+              available_doctors: searchResults.length
+            }, null, 2) 
+          }],
+        };
+      }
+      
+      const selectedDoctor = searchResults[doctorIndex - 1];
+      
+      // Try to get available slots using specialty_id as CLINIC_ID
+      let availableSlots = null;
+      const clinicIds = [selectedDoctor.specialty_id, 1, 2, 3, 4, 5];
+      
+      for (const clinicId of clinicIds) {
+        try {
+          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${clinicId}`);
+          const slotsData = await slotsResponse.json();
+          
+          if (slotsData.Root && slotsData.Root.HOURS_SLOTS) {
+            availableSlots = slotsData;
+            break;
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: true,
+            doctor: {
+              id: selectedDoctor.doctor_id,
+              name: selectedDoctor.doctor_name,
+              specialty: selectedDoctor.specialty_name,
+              hospital: selectedDoctor.hospital_name,
+              hospital_id: selectedDoctor.hospital_id,
+              specialty_id: selectedDoctor.specialty_id
+            },
+            available_slots: availableSlots,
+            message: availableSlots ? 
+              `تم اختيار د. ${selectedDoctor.doctor_name} والمواعيد المتاحة. الموعد التالي المتاح: ${availableSlots.Root.next_available_time}` : 
+              "تم اختيار الطبيب ولكن لا توجد مواعيد متاحة حالياً"
+          }, null, 2) 
+        }],
       };
     } catch (error) {
       return {
@@ -843,7 +954,8 @@ app.get('/health', (req, res) => {
       
       // Helper tools
       'format_appointment_date',
-      'get_doctor_slots_by_specialty'
+      'get_doctor_slots_by_specialty',
+      'select_doctor_from_list'
     ]
   });
 });
