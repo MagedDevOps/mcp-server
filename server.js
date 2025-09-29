@@ -660,21 +660,13 @@ server.registerTool(
   {
     description: "Generate OTP for existing patient verification",
     inputSchema: {
-      mobile: z.string().describe("Patient's mobile number with country code (e.g., +96569020323)"),
-      source: z.string().optional().describe("Source of OTP request (default: WhatsApp)")
+      mobile: z.string().describe("Patient's mobile number with country code (e.g., +96569020323)")
     },
   },
-  async ({ mobile, source = "WhatsApp" }) => {
+  async ({ mobile }) => {
     try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/otp/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mobile: mobile,
-          source: source
-        })
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(mobile)}&source=WhatsApp`, {
+        method: 'POST'
       });
       const data = await response.json();
       return {
@@ -702,21 +694,13 @@ server.registerTool(
     description: "Verify OTP for existing patient verification",
     inputSchema: {
       mobile: z.string().describe("Patient's mobile number with country code (e.g., +96569020323)"),
-      otpCode: z.string().describe("OTP code entered by patient"),
-      source: z.string().optional().describe("Source of OTP verification (default: WhatsApp)")
+      otpCode: z.string().describe("OTP code entered by patient")
     },
   },
-  async ({ mobile, otpCode, source = "WhatsApp" }) => {
+  async ({ mobile, otpCode }) => {
     try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/otp/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mobile: mobile,
-          source: source
-        })
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(mobile)}&source=WhatsApp`, {
+        method: 'POST'
       });
       const data = await response.json();
       
