@@ -654,6 +654,76 @@ server.registerTool(
   }
 );
 
+// OTP Verification APIs
+server.registerTool(
+  "generate_otp",
+  {
+    description: "Generate OTP for existing patient verification",
+    inputSchema: {
+      mobile: z.string().describe("Patient's mobile number with country code (e.g., +96569020323)"),
+      source: z.string().optional().describe("Source of OTP request (default: WhatsApp)")
+    },
+  },
+  async ({ mobile, source = "WhatsApp" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(mobile)}&source=${encodeURIComponent(source)}`);
+      const data = await response.json();
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: data.success,
+            message: data.message,
+            otp: data.otp,
+            mobile: mobile
+          }, null, 2) 
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error generating OTP: ${error.message}` }],
+      };
+    }
+  }
+);
+
+server.registerTool(
+  "verify_otp",
+  {
+    description: "Verify OTP for existing patient verification",
+    inputSchema: {
+      mobile: z.string().describe("Patient's mobile number with country code (e.g., +96569020323)"),
+      otpCode: z.string().describe("OTP code entered by patient"),
+      source: z.string().optional().describe("Source of OTP verification (default: WhatsApp)")
+    },
+  },
+  async ({ mobile, otpCode, source = "WhatsApp" }) => {
+    try {
+      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(mobile)}&source=${encodeURIComponent(source)}`);
+      const data = await response.json();
+      
+      // Check if the OTP matches
+      const isVerified = data.success && data.otpCode === otpCode;
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: isVerified,
+            message: isVerified ? "OTP verified successfully" : "OTP verification failed",
+            verified: isVerified,
+            mobile: mobile
+          }, null, 2) 
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error verifying OTP: ${error.message}` }],
+      };
+    }
+  }
+);
+
 // Helper tool for date formatting
 server.registerTool(
   "format_appointment_date",
@@ -819,6 +889,10 @@ app.get('/health', (req, res) => {
       // Patient APIs
       'check_patient_whatsapp_status',
       'submit_appointment',
+      
+      // OTP Verification APIs
+      'generate_otp',
+      'verify_otp',
       
       // Pricing API
       'get_packages_prices',
