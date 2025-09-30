@@ -856,14 +856,16 @@ server.registerTool(
       const response = await fetchWithTimeout('https://graph.facebook.com/v21.0/634818759725194/messages', {
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer F3gpxnJ2BoptJo2Q9BBohtXG9JDTTgaIib5zqTREFTSAqwlo4OJJ72BCRfxxWo45onQapDXrH84965LyUEREFTSAIcD1o33TfiDSYSr8YIvaIv5pbmVEJTopJ755wAiAv5k3c',
+          'Authorization': 'Bearer EAAPwnEgzTZBEBPBg6nWtTAHq5MTOgahk0Mz2GGmH2jZBs6HQXY4tWmX4s2pOUbG2IkN6Im2SyPY4yGZAo5wuPvTBWZCqJZBQV4NZB3FnlNaaLqCDJU4r3sKpHtH42TKnm7Ys3ZBx0MSzYUogD5DkOfvw1ZC43snYDzRsZBZB2zUFZC8vZACxfDfmZCWMZA7esNKPhbTCTA3uL2yQicTdaGZCzowHDf7wdYIfE8aT19wBElCxbdcQJi4yY3IuuWVQxw5fE8ZAaVsLjdw8LQZDZD',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           messaging_product: "whatsapp",
+          recipient_type: "individual",
           to: cleanPhoneNumber,
           type: "text",
           text: {
+            preview_url: false,
             body: message
           }
         })
