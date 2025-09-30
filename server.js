@@ -352,7 +352,7 @@ server.registerTool(
   },
   async ({ appointmentId, response }) => {
     try {
-      const response_data = await fetch(`https://salemapi.alsalamhosp.com:447/confcanc?id=${appointmentId}&response=${response}`, {
+      const response_data = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/confcanc?id=${appointmentId}&response=${response}`, {
         method: 'POST'
       });
       const data = await response_data.json();
@@ -653,16 +653,16 @@ server.registerTool(
       // Get available days for the selected doctor
       let availableDays = [];
       try {
-        const daysResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_available_days?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${selectedDoctor.specialty_id}`);
+        const daysResponse = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${selectedDoctor.specialty_id}&SCHEDULE_DAYS_ONLY=1&mobileapp_whatsapp=2`);
         const daysData = await daysResponse.json();
         
-        if (daysData.Root && daysData.Root.SCHEDULE_DAYS && daysData.Root.SCHEDULE_DAYS.SCHEDULE_DAYS_ROW) {
+        if (daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW) {
           const today = new Date();
           const twoWeeksFromNow = new Date(today.getTime() + (14 * 24 * 60 * 60 * 1000));
           
-          availableDays = daysData.Root.SCHEDULE_DAYS.SCHEDULE_DAYS_ROW.filter(day => {
+          availableDays = daysData.Root.DOC_DAYS.DOC_DAYS_ROW.filter(day => {
             // Parse date from DD/MM/YYYY format
-            const dateParts = day.schedule_date.split(' ')[0].split('/');
+            const dateParts = day.SCHEDULE_DATE.split(' ')[0].split('/');
             const dayDate = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
             return dayDate >= today && dayDate <= twoWeeksFromNow;
           });
@@ -712,7 +712,7 @@ server.registerTool(
   },
   async ({ hospitalId, doctorId, specialtyId }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${hospitalId}&DOC_ID=${doctorId}&CLINIC_ID=${specialtyId}`);
+      const response = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${hospitalId}&DOC_ID=${doctorId}&CLINIC_ID=${specialtyId}`);
       const data = await response.json();
       
       if (data.Root && data.Root.HOURS_SLOTS) {
