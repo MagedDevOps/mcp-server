@@ -373,6 +373,15 @@ server.registerTool(
         }));
       }
       
+      // Filter to only show next 14 days (2 weeks) from current date
+      const today = new Date();
+      const twoWeeksFromNow = new Date(today.getTime() + (14 * 24 * 60 * 60 * 1000));
+      
+      availableDays = availableDays.filter(day => {
+        const dayDate = new Date(day.schedule_date);
+        return dayDate >= today && dayDate <= twoWeeksFromNow;
+      });
+      
       return {
         content: [{ 
           type: "text", 
