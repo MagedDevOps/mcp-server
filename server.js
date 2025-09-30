@@ -124,14 +124,12 @@ server.registerTool(
         // Additional strategies for Arabic names that might be stored in English
         { term: term.split(' ')[0], lang: "E", description: "البحث بالاسم الأول بالإنجليزية" },
         { term: term.split(' ')[0], lang: "A", description: "البحث بالاسم الأول بالعربية" },
-        // Try common name variations for Arabic names stored in English
-        { term: "Bassam", lang: "A", description: "البحث بـ Bassam" },
-        { term: "بسام", lang: "E", description: "البحث بـ بسام بالإنجليزية" },
         // Try if the first name is a common Arabic name that might be stored in English
         ...(term.split(' ')[0] === 'بسام' ? [{ term: "Bassam", lang: "A", description: "البحث بـ Bassam للاسم بسام" }] : []),
         ...(term.split(' ')[0] === 'محمد' ? [{ term: "Mohammed", lang: "A", description: "البحث بـ Mohammed للاسم محمد" }] : []),
         ...(term.split(' ')[0] === 'أحمد' ? [{ term: "Ahmed", lang: "A", description: "البحث بـ Ahmed للاسم أحمد" }] : []),
-        ...(term.split(' ')[0] === 'علي' ? [{ term: "Ali", lang: "A", description: "البحث بـ Ali للاسم علي" }] : [])
+        ...(term.split(' ')[0] === 'علي' ? [{ term: "Ali", lang: "A", description: "البحث بـ Ali للاسم علي" }] : []),
+        ...(term.split(' ')[0] === 'ريم' ? [{ term: "Rima", lang: "A", description: "البحث بـ Rima للاسم ريم" }] : [])
       ];
       
       // Try each search strategy
@@ -433,8 +431,8 @@ server.registerTool(
               : [hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW];
             
             return slots.map(slot => ({
-              time: slot.NAME_AR,
-              time_en: slot.NAME_EN,
+              time: slot.ID_AM_PM ? slot.ID_AM_PM.split(' ')[1] + ' ' + slot.ID_AM_PM.split(' ')[2] : slot.NAME_AR,
+              time_en: slot.ID_AM_PM ? slot.ID_AM_PM.split(' ')[1] + ' ' + slot.ID_AM_PM.split(' ')[2] : slot.NAME_EN,
               id: slot.ID,
               id_am_pm: slot.ID_AM_PM,
               status: slot.SLOT_STATUS,
@@ -628,22 +626,25 @@ server.registerTool(
       
       const selectedDoctor = searchResults[doctorIndex - 1];
       
-      // Try to get available slots using specialty_id as CLINIC_ID
-      let availableSlots = null;
-      const clinicIds = [selectedDoctor.specialty_id, 1, 2, 3, 4, 5];
-      
-      for (const clinicId of clinicIds) {
-        try {
-          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${clinicId}`);
-          const slotsData = await slotsResponse.json();
+      // Get available days for the selected doctor
+      let availableDays = [];
+      try {
+        const daysResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_available_days?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${selectedDoctor.specialty_id}`);
+        const daysData = await daysResponse.json();
+        
+        if (daysData.Root && daysData.Root.SCHEDULE_DAYS && daysData.Root.SCHEDULE_DAYS.SCHEDULE_DAYS_ROW) {
+          const today = new Date();
+          const twoWeeksFromNow = new Date(today.getTime() + (14 * 24 * 60 * 60 * 1000));
           
-          if (slotsData.Root && slotsData.Root.HOURS_SLOTS) {
-            availableSlots = slotsData;
-            break;
-          }
-        } catch (error) {
-          continue;
+          availableDays = daysData.Root.SCHEDULE_DAYS.SCHEDULE_DAYS_ROW.filter(day => {
+            // Parse date from DD/MM/YYYY format
+            const dateParts = day.schedule_date.split(' ')[0].split('/');
+            const dayDate = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
+            return dayDate >= today && dayDate <= twoWeeksFromNow;
+          });
         }
+      } catch (error) {
+        console.log('Error getting available days:', error.message);
       }
       
       return {
@@ -659,10 +660,10 @@ server.registerTool(
               hospital_id: selectedDoctor.hospital_id,
               specialty_id: selectedDoctor.specialty_id
             },
-            available_slots: availableSlots,
-            message: availableSlots ? 
-              `تم اختيار د. ${selectedDoctor.doctor_name} والمواعيد المتاحة. الموعد التالي المتاح: ${availableSlots.Root.next_available_time}` : 
-              "تم اختيار الطبيب ولكن لا توجد مواعيد متاحة حالياً"
+            available_days: availableDays,
+            message: availableDays.length > 0 ? 
+              `تم اختيار د. ${selectedDoctor.doctor_name} (${selectedDoctor.specialty_name}) في ${selectedDoctor.hospital_name}. الأيام المتاحة: ${availableDays.length} يوم` : 
+              "تم اختيار الطبيب ولكن لا توجد أيام متاحة حالياً خلال الأسبوعين القادمين"
           }, null, 2) 
         }],
       };
