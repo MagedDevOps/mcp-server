@@ -834,6 +834,58 @@ server.registerTool(
   }
 );
 
+// WhatsApp messaging tool
+server.registerTool(
+  "send_whatsapp_message",
+  {
+    description: "Send WhatsApp message to patient",
+    inputSchema: {
+      phoneNumber: z.string().describe("Patient's phone number with country code (e.g., +96569020323)"),
+      message: z.string().describe("Message content to send")
+    },
+  },
+  async ({ phoneNumber, message }) => {
+    try {
+      // Remove + sign from phone number for WhatsApp API
+      const cleanPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber.substring(1) : phoneNumber;
+      
+      const response = await fetchWithTimeout('https://graph.facebook.com/v21.0/634818759725194/messages', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer F3gpxnJ2BoptJo2Q9BBohtXG9JDTTgaIib5zqTREFTSAqwlo4OJJ72BCRfxxWo45onQapDXrH84965LyUEREFTSAIcD1o33TfiDSYSr8YIvaIv5pbmVEJTopJ755wAiAv5k3c',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: cleanPhoneNumber,
+          type: "text",
+          text: {
+            body: message
+          }
+        })
+      });
+      
+      const data = await response.json();
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            success: response.ok,
+            message: response.ok ? "WhatsApp message sent successfully" : "Failed to send WhatsApp message",
+            phoneNumber: phoneNumber,
+            whatsappResponse: data
+          }, null, 2) 
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error sending WhatsApp message: ${error.message}` }],
+      };
+    }
+  }
+);
+
 // Helper tool for date formatting
 server.registerTool(
   "format_appointment_date",
@@ -983,6 +1035,9 @@ app.get('/health', (req, res) => {
       // OTP Verification APIs
       'generate_otp',
       'verify_otp',
+      
+      // WhatsApp APIs
+      'send_whatsapp_message',
       
       // Helper tools
       'format_appointment_date',
