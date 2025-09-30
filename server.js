@@ -186,10 +186,10 @@ server.registerTool(
       if (searchResults.length > 1) {
         // Return list of doctors for user selection
         const doctorsList = searchResults.map((doctor, index) => ({
-          id: doctor.doctor_id,
-          name: doctor.doctor_name,
-          specialty: doctor.specialty_name,
-          hospital: doctor.hospital_name,
+          doctor_id: doctor.doctor_id,
+          doctor_name: doctor.doctor_name,
+          specialty_name: doctor.specialty_name,
+          hospital_name: doctor.hospital_name,
           hospital_id: doctor.hospital_id,
           specialty_id: doctor.specialty_id,
           index: index + 1
@@ -202,6 +202,7 @@ server.registerTool(
               success: true,
               multiple_doctors: true,
               doctors: doctorsList,
+              searchResults: searchResults, // Keep original format for select_doctor_from_list
               total_count: searchResults.length,
               searchAttempts: searchAttempts,
               message: `تم العثور على ${searchResults.length} أطباء بهذا الاسم. يرجى اختيار الطبيب المطلوب من القائمة.`
