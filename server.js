@@ -3,6 +3,50 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { z } from "zod";
 
+// Timeout configuration
+const REQUEST_TIMEOUT = 50000; // 30 seconds timeout for all API requests
+
+// Helper function to create fetch with timeout
+async function fetchWithTimeout(url, options = {}, timeout = REQUEST_TIMEOUT) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeout}ms`);
+    }
+    throw error;
+  }
+}
+
+// Helper function to limit response size
+function limitResponseSize(data, maxSize = 15000) {
+  const jsonString = JSON.stringify(data);
+  if (jsonString.length <= maxSize) {
+    return data;
+  }
+  
+  // If too large, return only essential data
+  if (data.available_slots && Array.isArray(data.available_slots)) {
+    return {
+      ...data,
+      available_slots: data.available_slots.slice(0, 10), // Limit to first 10 slots
+      truncated: true,
+      total_slots: data.available_slots.length
+    };
+  }
+  
+  return data;
+}
+
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -38,7 +82,7 @@ server.registerTool(
   },
   async ({ lang = "E" }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/hospitals?lang=${lang}`);
+      const response = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/hospitals?lang=${lang}`);
       const data = await response.json();
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -135,7 +179,7 @@ server.registerTool(
       // Try each search strategy
       for (const strategy of searchStrategies) {
         try {
-          const searchResponse = await fetch(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(strategy.term)}&lang=${strategy.lang}`);
+          const searchResponse = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/search/individual?term=${encodeURIComponent(strategy.term)}&lang=${strategy.lang}`);
           const searchData = await searchResponse.json();
           
           searchAttempts.push({
@@ -218,7 +262,7 @@ server.registerTool(
       
       for (const clinicId of clinicIds) {
         try {
-          const slotsResponse = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`);
+          const slotsResponse = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`);
           const slotsData = await slotsResponse.json();
           
           // Check if we got valid slots data (not an error)
@@ -357,7 +401,7 @@ server.registerTool(
   },
   async ({ branchId, docId, clinicId }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&CLINIC_ID=${clinicId}&DOC_ID=${docId}&SCHEDULE_DAYS_ONLY=1&mobileapp_whatsapp=2`);
+      const response = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&CLINIC_ID=${clinicId}&DOC_ID=${docId}&SCHEDULE_DAYS_ONLY=1&mobileapp_whatsapp=2`);
       const data = await response.json();
       
       // Process the response to extract available days
@@ -391,8 +435,7 @@ server.registerTool(
             doctor_id: docId,
             branch_id: branchId,
             clinic_id: clinicId,
-            available_days: availableDays,
-            raw_response: data
+            available_days: availableDays
           }, null, 2) 
         }],
       };
@@ -417,7 +460,7 @@ server.registerTool(
   },
   async ({ branchId, docId, clinicId, selectedDate }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&CLINIC_ID=${clinicId}&DOC_ID=${docId}&SCHEDULE_DAYS_ONLY=0&Web_FromDate=${selectedDate}&mobileapp_whatsapp=2`);
+      const response = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/get_doc_next_availble_slot?BRANCH_ID=${branchId}&CLINIC_ID=${clinicId}&DOC_ID=${docId}&SCHEDULE_DAYS_ONLY=0&Web_FromDate=${selectedDate}&mobileapp_whatsapp=2`);
       const data = await response.json();
       
       // Process the response to include SCHED_SERIAL for each slot
@@ -445,21 +488,23 @@ server.registerTool(
         }).flat();
       }
       
+      const responseData = {
+        success: true,
+        doctor_id: docId,
+        branch_id: branchId,
+        clinic_id: clinicId,
+        selected_date: selectedDate,
+        available_slots: processedSlots,
+        next_available_time: data.Root?.next_available_time || null,
+        next_available_schedule_serial: data.Root?.NEXT_AVAILABLE_SCHED_SER || null
+      };
+      
+      const limitedData = limitResponseSize(responseData);
+      
       return {
         content: [{ 
           type: "text", 
-          text: JSON.stringify({
-            success: true,
-            doctor_id: docId,
-            branch_id: branchId,
-            clinic_id: clinicId,
-            selected_date: selectedDate,
-            available_slots: processedSlots,
-            next_available_time: data.Root?.next_available_time || null,
-            next_available_schedule_serial: data.Root?.NEXT_AVAILABLE_SCHED_SER || null,
-            mobile_app_times: data.Root?.MOBILE_APP_TIMES?.MOBILE_APP_TIMES_ROW || null,
-            raw_response: data
-          }, null, 2) 
+          text: JSON.stringify(limitedData, null, 2) 
         }],
       };
     } catch (error) {
@@ -481,7 +526,7 @@ server.registerTool(
   },
   async ({ mobile }) => {
     try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/checkPatientWhatsApp', {
+      const response = await fetchWithTimeout('https://salemapi.alsalamhosp.com:447/checkPatientWhatsApp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -571,7 +616,7 @@ server.registerTool(
         appointmentData.GENDER = gender;
       }
 
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/submit_appointment', {
+      const response = await fetchWithTimeout('https://salemapi.alsalamhosp.com:447/submit_appointment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
