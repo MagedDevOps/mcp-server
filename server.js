@@ -378,7 +378,9 @@ server.registerTool(
       const twoWeeksFromNow = new Date(today.getTime() + (14 * 24 * 60 * 60 * 1000));
       
       availableDays = availableDays.filter(day => {
-        const dayDate = new Date(day.schedule_date);
+        // Parse date from DD/MM/YYYY format
+        const dateParts = day.schedule_date.split(' ')[0].split('/');
+        const dayDate = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
         return dayDate >= today && dayDate <= twoWeeksFromNow;
       });
       
@@ -424,7 +426,12 @@ server.registerTool(
       if (data.Root && data.Root.HOURS_SLOTS && data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW) {
         processedSlots = data.Root.HOURS_SLOTS.HOURS_SLOTS_ROW.map(hourSlot => {
           if (hourSlot.SINGLE_HOUR_SLOTS && hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW) {
-            return hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW.map(slot => ({
+            // Handle both array and single object cases
+            const slots = Array.isArray(hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW) 
+              ? hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW 
+              : [hourSlot.SINGLE_HOUR_SLOTS.SINGLE_HOUR_SLOTS_ROW];
+            
+            return slots.map(slot => ({
               time: slot.NAME_AR,
               time_en: slot.NAME_EN,
               id: slot.ID,
