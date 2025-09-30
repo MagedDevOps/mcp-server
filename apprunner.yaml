@@ -6,7 +6,6 @@ build:
       - echo "Installing dependencies..."
       - npm install
 run:
-  runtime-version: 18
   command: node server.js
   network:
     port: 3000
