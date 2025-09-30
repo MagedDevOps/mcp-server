@@ -27,26 +27,6 @@ async function fetchWithTimeout(url, options = {}, timeout = REQUEST_TIMEOUT) {
   }
 }
 
-// Helper function to limit response size
-function limitResponseSize(data, maxSize = 15000) {
-  const jsonString = JSON.stringify(data);
-  if (jsonString.length <= maxSize) {
-    return data;
-  }
-  
-  // If too large, return only essential data
-  if (data.available_slots && Array.isArray(data.available_slots)) {
-    return {
-      ...data,
-      available_slots: data.available_slots.slice(0, 10), // Limit to first 10 slots
-      truncated: true,
-      total_slots: data.available_slots.length
-    };
-  }
-  
-  return data;
-}
-
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -435,7 +415,8 @@ server.registerTool(
             doctor_id: docId,
             branch_id: branchId,
             clinic_id: clinicId,
-            available_days: availableDays
+            available_days: availableDays,
+            raw_response: data
           }, null, 2) 
         }],
       };
@@ -488,23 +469,21 @@ server.registerTool(
         }).flat();
       }
       
-      const responseData = {
-        success: true,
-        doctor_id: docId,
-        branch_id: branchId,
-        clinic_id: clinicId,
-        selected_date: selectedDate,
-        available_slots: processedSlots,
-        next_available_time: data.Root?.next_available_time || null,
-        next_available_schedule_serial: data.Root?.NEXT_AVAILABLE_SCHED_SER || null
-      };
-      
-      const limitedData = limitResponseSize(responseData);
-      
       return {
         content: [{ 
           type: "text", 
-          text: JSON.stringify(limitedData, null, 2) 
+          text: JSON.stringify({
+            success: true,
+            doctor_id: docId,
+            branch_id: branchId,
+            clinic_id: clinicId,
+            selected_date: selectedDate,
+            available_slots: processedSlots,
+            next_available_time: data.Root?.next_available_time || null,
+            next_available_schedule_serial: data.Root?.NEXT_AVAILABLE_SCHED_SER || null,
+            mobile_app_times: data.Root?.MOBILE_APP_TIMES?.MOBILE_APP_TIMES_ROW || null,
+            raw_response: data
+          }, null, 2) 
         }],
       };
     } catch (error) {
