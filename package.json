@@ -2,9 +2,17 @@
   "name": "mcp-server",
   "version": "1.0.0",
   "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
   "dependencies": {
-    "express": "^4.19.2",
     "@modelcontextprotocol/sdk": "^1.17.4",
+    "express": "^4.19.2",
     "zod": "^3.22.4"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }
