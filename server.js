@@ -4,7 +4,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { z } from "zod";
 
 // Timeout configuration
-const REQUEST_TIMEOUT = 50000; // 30 seconds timeout for all API requests
+const REQUEST_TIMEOUT = 50000; // 50 seconds timeout for all API requests
 
 // Helper function to create fetch with timeout
 async function fetchWithTimeout(url, options = {}, timeout = REQUEST_TIMEOUT) {
@@ -86,7 +86,7 @@ server.registerTool(
   },
   async ({ hospitalId, lang = "E" }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/specialties/${hospitalId}?lang=${lang}`);
+      const response = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/specialties/${hospitalId}?lang=${lang}`);
       const data = await response.json();
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -111,7 +111,7 @@ server.registerTool(
   },
   async ({ hospitalId, specialtyId, lang = "E" }) => {
     try {
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/doctors/${hospitalId}/${specialtyId}?lang=${lang}`);
+      const response = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/doctors/${hospitalId}/${specialtyId}?lang=${lang}`);
       const data = await response.json();
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -303,7 +303,7 @@ server.registerTool(
   },
   async () => {
     try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/branches');
+      const response = await fetchWithTimeout('https://salemapi.alsalamhosp.com:447/branches');
       const data = await response.json();
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -325,7 +325,7 @@ server.registerTool(
   },
   async () => {
     try {
-      const response = await fetch('https://salemapi.alsalamhosp.com:447/chatbotinfo');
+      const response = await fetchWithTimeout('https://salemapi.alsalamhosp.com:447/chatbotinfo');
       const data = await response.json();
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -398,12 +398,15 @@ server.registerTool(
       
       // Filter to only show next 14 days (2 weeks) from current date
       const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize to start of day
       const twoWeeksFromNow = new Date(today.getTime() + (14 * 24 * 60 * 60 * 1000));
+      twoWeeksFromNow.setHours(23, 59, 59, 999); // Normalize to end of day
       
       availableDays = availableDays.filter(day => {
         // Parse date from DD/MM/YYYY format
         const dateParts = day.schedule_date.split(' ')[0].split('/');
         const dayDate = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
+        dayDate.setHours(0, 0, 0, 0); // Normalize to start of day
         return dayDate >= today && dayDate <= twoWeeksFromNow;
       });
       
@@ -658,12 +661,15 @@ server.registerTool(
         
         if (daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW) {
           const today = new Date();
+          today.setHours(0, 0, 0, 0); // Normalize to start of day
           const twoWeeksFromNow = new Date(today.getTime() + (14 * 24 * 60 * 60 * 1000));
+          twoWeeksFromNow.setHours(23, 59, 59, 999); // Normalize to end of day
           
           availableDays = daysData.Root.DOC_DAYS.DOC_DAYS_ROW.filter(day => {
             // Parse date from DD/MM/YYYY format
             const dateParts = day.SCHEDULE_DATE.split(' ')[0].split('/');
             const dayDate = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
+            dayDate.setHours(0, 0, 0, 0); // Normalize to start of day
             return dayDate >= today && dayDate <= twoWeeksFromNow;
           });
         }
@@ -765,7 +771,7 @@ server.registerTool(
     try {
       // Remove + sign from mobile number as API expects format without +
       const cleanMobile = mobile.startsWith('+') ? mobile.substring(1) : mobile;
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(cleanMobile)}&source=WhatsApp`, {
+      const response = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/otp/generate?mobile=${encodeURIComponent(cleanMobile)}&source=WhatsApp`, {
         method: 'POST'
       });
       const data = await response.json();
@@ -801,7 +807,7 @@ server.registerTool(
     try {
       // Remove + sign from mobile number as API expects format without +
       const cleanMobile = mobile.startsWith('+') ? mobile.substring(1) : mobile;
-      const response = await fetch(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(cleanMobile)}&source=WhatsApp`, {
+      const response = await fetchWithTimeout(`https://salemapi.alsalamhosp.com:447/otp/verify?mobile=${encodeURIComponent(cleanMobile)}&source=WhatsApp`, {
         method: 'POST'
       });
       const data = await response.json();
