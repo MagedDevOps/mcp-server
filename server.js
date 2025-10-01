@@ -160,8 +160,8 @@ server.registerTool(
         ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'ريم' ? [{ term: "Rima", lang: "A", description: "البحث بـ Rima للاسم ريم" }] : [])
       ];
       
-      // Add hamza variants for Arabic names if no results found initially
-      if (lang === "A" && searchResults.length === 0) {
+      // Add hamza variants for Arabic names
+      if (lang === "A") {
         const hamzaVariants = getHamzaVariants(term);
         for (const variant of hamzaVariants) {
           if (variant !== term) {
