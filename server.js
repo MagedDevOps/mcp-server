@@ -157,22 +157,11 @@ server.registerTool(
         ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'محمد' ? [{ term: "Mohammed", lang: "A", description: "البحث بـ Mohammed للاسم محمد" }] : []),
         ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'أحمد' ? [{ term: "Ahmed", lang: "A", description: "البحث بـ Ahmed للاسم أحمد" }] : []),
         ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'علي' ? [{ term: "Ali", lang: "A", description: "البحث بـ Ali للاسم علي" }] : []),
-        ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'ريم' ? [{ term: "Rima", lang: "A", description: "البحث بـ Rima للاسم ريم" }] : [])
+        ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'ريم' ? [{ term: "Rima", lang: "A", description: "البحث بـ Rima للاسم ريم" }] : []),
+        // Static hamza variant for اسلام -> إسلام
+        ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'اسلام' ? [{ term: "إسلام", lang: "A", description: "البحث بالبديل الهمزة: إسلام" }] : [])
       ];
       
-      // Add hamza variants for Arabic names
-      if (lang === "A") {
-        const hamzaVariants = getHamzaVariants(term);
-        for (const variant of hamzaVariants) {
-          if (variant !== term) {
-            searchStrategies.push({ 
-              term: variant, 
-              lang: lang, 
-              description: `البحث بالبديل الهمزة: ${variant}` 
-            });
-          }
-        }
-      }
       
       // Try each search strategy and collect ALL results
       for (const strategy of searchStrategies) {
@@ -969,46 +958,6 @@ server.registerTool(
 
 
 
-// Helper function to generate hamza variants for Arabic names
-function getHamzaVariants(name) {
-  const staticMappings = {
-    'اسلام': ['اسلام', 'إسلام'],
-    'احمد': ['احمد', 'أحمد'],
-    'ابراهيم': ['ابراهيم', 'إبراهيم'],
-    'علي': ['علي', 'على'],
-    'محمد': ['محمد', 'محمد'],
-    'فاطمة': ['فاطمة', 'فاطمه'],
-    'ريم': ['ريم', 'ریم'],
-    'بسام': ['بسام', 'بسام'],
-    'خالد': ['خالد', 'خالد'],
-    'نور': ['نور', 'نور']
-  };
-  
-  // Check if the name (without دكتور prefix) has a static mapping
-  const cleanName = name.replace(/^(دكتور|د\.)\s*/i, '').trim();
-  
-  if (staticMappings[cleanName]) {
-    return staticMappings[cleanName];
-  }
-  
-  // Fallback to original hamza replacement logic for other names
-  const hamzaReplacements = [
-    { from: 'ا', to: 'أ' },
-    { from: 'ا', to: 'إ' },
-    { from: 'أ', to: 'ا' },
-    { from: 'إ', to: 'ا' }
-  ];
-  
-  let variants = [name];
-  
-  for (const replacement of hamzaReplacements) {
-    if (name.includes(replacement.from)) {
-      variants.push(name.replace(replacement.from, replacement.to));
-    }
-  }
-  
-  return [...new Set(variants)];
-}
 
 // Store transports by session ID
 const transports = {};
