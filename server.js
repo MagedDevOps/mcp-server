@@ -174,7 +174,7 @@ server.registerTool(
         }
       }
       
-      // Try each search strategy
+      // Try each search strategy and collect ALL results
       for (const strategy of searchStrategies) {
         try {
           const searchResponse = await fetchWithTimeout(`https://salemuatapi.alsalamhosp.com:446/search/individual?term=${encodeURIComponent(strategy.term)}&lang=${strategy.lang}`);
@@ -188,8 +188,16 @@ server.registerTool(
           });
           
           if (searchData.searchResults && searchData.searchResults.length > 0) {
-            searchResults = searchData.searchResults;
-            break; // Found results, stop searching
+            // Add results to searchResults (avoid duplicates)
+            for (const doctor of searchData.searchResults) {
+              const exists = searchResults.some(existing => 
+                existing.doctor_id === doctor.doctor_id && 
+                existing.hospital_id === doctor.hospital_id
+              );
+              if (!exists) {
+                searchResults.push(doctor);
+              }
+            }
           }
         } catch (error) {
           searchAttempts.push({
@@ -963,22 +971,34 @@ server.registerTool(
 
 // Helper function to generate hamza variants for Arabic names
 function getHamzaVariants(name) {
-  // Define hamza replacement patterns
+  const staticMappings = {
+    'اسلام': ['اسلام', 'إسلام'],
+    'احمد': ['احمد', 'أحمد'],
+    'ابراهيم': ['ابراهيم', 'إبراهيم'],
+    'علي': ['علي', 'على'],
+    'محمد': ['محمد', 'محمد'],
+    'فاطمة': ['فاطمة', 'فاطمه'],
+    'ريم': ['ريم', 'ریم'],
+    'بسام': ['بسام', 'بسام'],
+    'خالد': ['خالد', 'خالد'],
+    'نور': ['نور', 'نور']
+  };
+  
+  // Check if the name (without دكتور prefix) has a static mapping
+  const cleanName = name.replace(/^(دكتور|د\.)\s*/i, '').trim();
+  
+  if (staticMappings[cleanName]) {
+    return staticMappings[cleanName];
+  }
+  
+  // Fallback to original hamza replacement logic for other names
   const hamzaReplacements = [
-    // Alif variations
     { from: 'ا', to: 'أ' },
     { from: 'ا', to: 'إ' },
     { from: 'أ', to: 'ا' },
-    { from: 'إ', to: 'ا' },
-    // Waw variations
-    { from: 'و', to: 'ؤ' },
-    { from: 'ؤ', to: 'و' },
-    // Ya variations
-    { from: 'ي', to: 'ئ' },
-    { from: 'ئ', to: 'ي' }
+    { from: 'إ', to: 'ا' }
   ];
   
-  // Generate variants by applying hamza replacements
   let variants = [name];
   
   for (const replacement of hamzaReplacements) {
@@ -987,7 +1007,7 @@ function getHamzaVariants(name) {
     }
   }
   
-  return [...new Set(variants)]; // Remove duplicates
+  return [...new Set(variants)];
 }
 
 // Store transports by session ID
