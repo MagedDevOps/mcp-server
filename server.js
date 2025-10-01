@@ -160,6 +160,20 @@ server.registerTool(
         ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'ريم' ? [{ term: "Rima", lang: "A", description: "البحث بـ Rima للاسم ريم" }] : [])
       ];
       
+      // Add hamza variants for Arabic names if no results found initially
+      if (lang === "A" && searchResults.length === 0) {
+        const hamzaVariants = getHamzaVariants(term);
+        for (const variant of hamzaVariants) {
+          if (variant !== term) {
+            searchStrategies.push({ 
+              term: variant, 
+              lang: lang, 
+              description: `البحث بالبديل الهمزة: ${variant}` 
+            });
+          }
+        }
+      }
+      
       // Try each search strategy
       for (const strategy of searchStrategies) {
         try {
@@ -946,6 +960,35 @@ server.registerTool(
 );
 
 
+
+// Helper function to generate hamza variants for Arabic names
+function getHamzaVariants(name) {
+  // Define hamza replacement patterns
+  const hamzaReplacements = [
+    // Alif variations
+    { from: 'ا', to: 'أ' },
+    { from: 'ا', to: 'إ' },
+    { from: 'أ', to: 'ا' },
+    { from: 'إ', to: 'ا' },
+    // Waw variations
+    { from: 'و', to: 'ؤ' },
+    { from: 'ؤ', to: 'و' },
+    // Ya variations
+    { from: 'ي', to: 'ئ' },
+    { from: 'ئ', to: 'ي' }
+  ];
+  
+  // Generate variants by applying hamza replacements
+  let variants = [name];
+  
+  for (const replacement of hamzaReplacements) {
+    if (name.includes(replacement.from)) {
+      variants.push(name.replace(replacement.from, replacement.to));
+    }
+  }
+  
+  return [...new Set(variants)]; // Remove duplicates
+}
 
 // Store transports by session ID
 const transports = {};
