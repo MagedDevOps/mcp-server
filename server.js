@@ -139,31 +139,46 @@ server.registerTool(
       let searchResults = [];
       let searchAttempts = [];
       
-      // Try multiple search strategies
+      // Pre-process term once to avoid repeated operations
+      const cleanedTerm = term.replace(/^(دكتور|د\.)\s*/i, '');
+      const firstWord = cleanedTerm.split(' ')[0];
+      const alternativeLang = lang === "A" ? "E" : "A";
+      
+      // Name mapping for common Arabic names (optimized lookup)
+      const nameMapping = {
+        'بسام': 'Bassam',
+        'محمد': 'Mohammed', 
+        'أحمد': 'Ahmed',
+        'علي': 'Ali',
+        'ريم': 'Rima',
+        'اسلام': 'إسلام'
+      };
+      
+      // Build search strategies efficiently
       const searchStrategies = [
-        { term: term, lang: lang, description: "البحث الأصلي" },
-        { term: term, lang: lang === "A" ? "E" : "A", description: "البحث باللغة الأخرى" },
-        // Handle "دكتور" or "د." prefix by extracting the actual name
-        { term: term.replace(/^(دكتور|د\.)\s*/i, ''), lang: lang, description: "البحث بالاسم بدون دكتور" },
-        { term: term.replace(/^(دكتور|د\.)\s*/i, ''), lang: lang === "A" ? "E" : "A", description: "البحث بالاسم بدون دكتور باللغة الأخرى" },
-        { term: term.split(' ')[0], lang: lang, description: "البحث بالاسم الأول فقط" },
-        { term: term.split(' ')[0], lang: lang === "A" ? "E" : "A", description: "البحث بالاسم الأول باللغة الأخرى" },
-        // Additional strategies for Arabic names that might be stored in English
-        { term: term.split(' ')[0], lang: "E", description: "البحث بالاسم الأول بالإنجليزية" },
-        { term: term.split(' ')[0], lang: "A", description: "البحث بالاسم الأول بالعربية" },
-        // Try if the first name is a common Arabic name that might be stored in English
-        // Use the cleaned name (without دكتور prefix) for name mapping
-        ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'بسام' ? [{ term: "Bassam", lang: "A", description: "البحث بـ Bassam للاسم بسام" }] : []),
-        ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'محمد' ? [{ term: "Mohammed", lang: "A", description: "البحث بـ Mohammed للاسم محمد" }] : []),
-        ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'أحمد' ? [{ term: "Ahmed", lang: "A", description: "البحث بـ Ahmed للاسم أحمد" }] : []),
-        ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'علي' ? [{ term: "Ali", lang: "A", description: "البحث بـ Ali للاسم علي" }] : []),
-        ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'ريم' ? [{ term: "Rima", lang: "A", description: "البحث بـ Rima للاسم ريم" }] : []),
-        // Static hamza variant for اسلام -> إسلام
-        ...(term.replace(/^(دكتور|د\.)\s*/i, '').split(' ')[0] === 'اسلام' ? [{ term: "إسلام", lang: "A", description: "البحث بالبديل الهمزة: إسلام" }] : [])
+        { term: term, lang: lang, description: "البحث الأصلي", priority: 1 },
+        { term: term, lang: alternativeLang, description: "البحث باللغة الأخرى", priority: 2 },
+        { term: cleanedTerm, lang: lang, description: "البحث بالاسم بدون دكتور", priority: 3 },
+        { term: cleanedTerm, lang: alternativeLang, description: "البحث بالاسم بدون دكتور باللغة الأخرى", priority: 4 },
+        { term: firstWord, lang: lang, description: "البحث بالاسم الأول فقط", priority: 5 },
+        { term: firstWord, lang: alternativeLang, description: "البحث بالاسم الأول باللغة الأخرى", priority: 6 }
       ];
       
+      // Add name mapping strategies if applicable
+      if (nameMapping[firstWord]) {
+        searchStrategies.push({
+          term: nameMapping[firstWord],
+          lang: "A",
+          description: `البحث بـ ${nameMapping[firstWord]} للاسم ${firstWord}`,
+          priority: 7
+        });
+      }
       
-      // Try each search strategy and collect ALL results
+      
+      // Use Set for faster duplicate checking
+      const seenDoctors = new Set();
+      
+      // Try each search strategy with early termination optimization
       for (const strategy of searchStrategies) {
         try {
           const searchResponse = await fetchWithTimeout(`https://salemuatapi.alsalamhosp.com:446/search/individual?term=${encodeURIComponent(strategy.term)}&lang=${strategy.lang}`);
@@ -177,15 +192,19 @@ server.registerTool(
           });
           
           if (searchData.searchResults && searchData.searchResults.length > 0) {
-            // Add results to searchResults (avoid duplicates)
+            // Add results with optimized duplicate checking
             for (const doctor of searchData.searchResults) {
-              const exists = searchResults.some(existing => 
-                existing.doctor_id === doctor.doctor_id && 
-                existing.hospital_id === doctor.hospital_id
-              );
-              if (!exists) {
+              const doctorKey = `${doctor.doctor_id}-${doctor.hospital_id}`;
+              if (!seenDoctors.has(doctorKey)) {
+                seenDoctors.add(doctorKey);
                 searchResults.push(doctor);
               }
+            }
+            
+            // Early termination if we found results from high-priority strategies
+            if (searchResults.length > 0 && strategy.priority <= 4) {
+              // Stop searching if we found results from primary strategies
+              break;
             }
           }
         } catch (error) {
@@ -251,22 +270,38 @@ server.registerTool(
       // Handle single doctor - get available slots
       const doctor = searchResults[0];
       
-      // Try to get available slots using specialty_id as CLINIC_ID
+      // Optimized slots checking - try most likely clinic IDs first
       let availableSlots = null;
-      const clinicIds = [doctor.specialty_id, 1, 2, 3, 4, 5]; // Try specialty_id first, then fallback values
+      const prioritizedClinicIds = [
+        doctor.specialty_id, // Most likely to work
+        1, 2, 3 // Common fallback values, reduced from 5 to 3 for faster response
+      ];
       
-      for (const clinicId of clinicIds) {
+      // Use Promise.allSettled for parallel requests (faster than sequential)
+      const slotsPromises = prioritizedClinicIds.map(async (clinicId) => {
         try {
-          const slotsResponse = await fetchWithTimeout(`https://salemuatapi.alsalamhosp.com:446/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`);
+          const slotsResponse = await fetchWithTimeout(
+            `https://salemuatapi.alsalamhosp.com:446/get_doc_next_availble_slot?BRANCH_ID=${doctor.hospital_id}&DOC_ID=${doctor.doctor_id}&CLINIC_ID=${clinicId}`,
+            {}, 
+            10000 // Reduced timeout for slots check
+          );
           const slotsData = await slotsResponse.json();
           
-          // Check if we got valid slots data (not an error)
           if (slotsData.Root && slotsData.Root.HOURS_SLOTS) {
-            availableSlots = slotsData;
-            break;
+            return { success: true, data: slotsData, clinicId };
           }
+          return { success: false, clinicId };
         } catch (error) {
-          continue; // Try next CLINIC_ID
+          return { success: false, error: error.message, clinicId };
+        }
+      });
+      
+      // Wait for all requests and use the first successful one
+      const slotsResults = await Promise.allSettled(slotsPromises);
+      for (const result of slotsResults) {
+        if (result.status === 'fulfilled' && result.value.success) {
+          availableSlots = result.value.data;
+          break;
         }
       }
       
