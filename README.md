@@ -33,7 +33,6 @@ The AlSalam Hospital MCP Server provides a robust API for managing hospital oper
 
 ### Communication
 - **send_whatsapp_message**: Send WhatsApp messages to patients
-- **get_chatbot_info**: Get chatbot information
 
 ### Additional Features
 - Multi-language support (Arabic and English)
@@ -111,8 +110,7 @@ The server provides 20+ MCP tools for comprehensive hospital management. Connect
       "expectedEndDate": "15/12/2024 11:00:00",
       "patTel": "96569020323",
       "telephoneCountryCode": "+965",
-      "patName": "Ahmed Mohammed",
-      "gender": "M"
+      "patName": "Ahmed Mohammed"
     }
   }
 }
