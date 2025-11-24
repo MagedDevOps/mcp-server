@@ -158,7 +158,8 @@ server.registerTool(
         specialty_id: z.string(),
         specialty_name: z.string(),
         hospital_id: z.string(),
-        hospital_name: z.string()
+        hospital_name: z.string(),
+        clinic_id: z.string().describe("Clinic ID from search results - REQUIRED for getting available days")
       })).describe("Array of doctors from search results")
     },
   },
@@ -182,7 +183,7 @@ server.registerTool(
 
       // Get available days for the selected doctor with caching, shorter timeout, and fallbacks
       let availableDays = [];
-      const cacheKey = `${selectedDoctor.hospital_id}:${selectedDoctor.doctor_id}:${selectedDoctor.specialty_id}`;
+      const cacheKey = `${selectedDoctor.hospital_id}:${selectedDoctor.doctor_id}:${selectedDoctor.clinic_id}`;
       const cached = daysCache.get(cacheKey);
       const nowTs = Date.now();
       if (cached && (nowTs - cached.timestamp) < DAYS_CACHE_TTL_MS) {
@@ -202,15 +203,17 @@ server.registerTool(
           }
         };
 
-        // Attempt with specialty_id first (short timeout + single retry), then fallbacks
+        // Use clinic_id from search results as the primary clinic ID (this is the correct approach!)
         const primaryTimeout = 12000; // 12s
-        let daysData = await tryFetchDays(selectedDoctor.specialty_id, primaryTimeout);
+        let daysData = await tryFetchDays(selectedDoctor.clinic_id, primaryTimeout);
+
+        // Only use fallbacks if clinic_id didn't work
         if (!(daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW)) {
-          // Retry once quickly
+          // Try specialty_id as fallback
           daysData = await tryFetchDays(selectedDoctor.specialty_id, 8000);
         }
 
-        // Fallback clinic IDs if primary didn't yield DOC_DAYS
+        // Last resort: try common clinic IDs
         if (!(daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW)) {
           const fallbackClinicIds = [1, 2, 3];
           for (const fallbackId of fallbackClinicIds) {
@@ -251,7 +254,8 @@ server.registerTool(
               specialty: selectedDoctor.specialty_name,
               hospital: selectedDoctor.hospital_name,
               hospital_id: selectedDoctor.hospital_id,
-              specialty_id: selectedDoctor.specialty_id
+              specialty_id: selectedDoctor.specialty_id,
+              clinic_id: selectedDoctor.clinic_id
             },
             available_days: availableDays,
             message: availableDays.length > 0 ?
