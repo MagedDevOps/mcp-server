@@ -357,7 +357,7 @@ server.registerTool(
     inputSchema: {
       servType: z.string().describe("Service type"),
       branchId: z.string().describe("Branch ID"),
-      clinicId: z.string().describe("Specialty ID"),
+      clinicId: z.string().describe("Clinic ID"),
       docId: z.string().describe("Doctor ID"),
       schedSerial: z.string().describe("Schedule serial number"),
       shiftId: z.string().describe("Shift ID"),
