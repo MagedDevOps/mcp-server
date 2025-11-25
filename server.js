@@ -358,6 +358,7 @@ server.registerTool(
       servType: z.string().describe("Service type"),
       branchId: z.string().describe("Branch ID"),
       clinicId: z.string().describe("Clinic ID"),
+      specialtyId: z.string().optional().describe("Specialty ID"),
       docId: z.string().describe("Doctor ID"),
       schedSerial: z.string().describe("Schedule serial number"),
       shiftId: z.string().describe("Shift ID"),
@@ -377,6 +378,7 @@ server.registerTool(
     servType,
     branchId,
     clinicId,
+    specialtyId,
     docId,
     schedSerial,
     shiftId,
@@ -408,6 +410,10 @@ server.registerTool(
         PAT_TEL: patTel,
         TELEPHONE_COUNTRY_CODE: telephoneCountryCode
       };
+
+      if (specialtyId) {
+        appointmentData.SPECIALTY_ID = specialtyId;
+      }
 
       // Add patient-specific data
       if (patientId) {
