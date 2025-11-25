@@ -230,17 +230,10 @@ server.registerTool(
         }
 
         if (daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const twoWeeksFromNow = new Date(today.getTime() + (14 * 24 * 60 * 60 * 1000));
-          twoWeeksFromNow.setHours(23, 59, 59, 999);
-
-          availableDays = daysData.Root.DOC_DAYS.DOC_DAYS_ROW.filter(day => {
-            const dateParts = day.SCHEDULE_DATE.split(' ')[0].split('/');
-            const dayDate = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
-            dayDate.setHours(0, 0, 0, 0);
-            return dayDate >= today && dayDate <= twoWeeksFromNow;
-          });
+          // Use all days returned by the API (API already filters out past dates)
+          availableDays = Array.isArray(daysData.Root.DOC_DAYS.DOC_DAYS_ROW)
+            ? daysData.Root.DOC_DAYS.DOC_DAYS_ROW
+            : [daysData.Root.DOC_DAYS.DOC_DAYS_ROW];
 
           // Cache result
           daysCache.set(cacheKey, { timestamp: Date.now(), availableDays });
