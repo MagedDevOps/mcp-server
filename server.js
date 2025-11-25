@@ -191,8 +191,12 @@ server.registerTool(
       } else {
         const tryFetchDays = async (clinicId, timeoutMs) => {
           try {
+            // Get today's date in DD/MM/YYYY format
+            const today = new Date();
+            const fromDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+
             const resp = await fetchWithTimeout(
-              `https://salemuatapi.alsalamhosp.com:446/get_doc_next_availble_slot?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${clinicId}&SCHEDULE_DAYS_ONLY=1&mobileapp_whatsapp=2`,
+              `https://salemuatapi.alsalamhosp.com:446/get_doctor_available_days?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${clinicId}&SCHEDULE_DAYS_ONLY=1&Web_FromDate=${fromDate}&mobileapp_whatsapp=2`,
               {},
               timeoutMs
             );
