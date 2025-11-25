@@ -27,7 +27,6 @@ async function fetchWithTimeout(url, options = {}, timeout = REQUEST_TIMEOUT) {
   }
 }
 
-// Simple in-memory cache for doctor available days
 const DAYS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 const daysCache = new Map(); // key -> { timestamp, availableDays }
 
@@ -221,7 +220,7 @@ server.registerTool(
         content: [{
           type: "text",
           text: JSON.stringify({
-            success: true,
+            success: availableDays.length > 0,
             doctor: {
               id: selectedDoctor.doctor_id,
               name: selectedDoctor.doctor_name,
@@ -234,7 +233,7 @@ server.registerTool(
             available_days: availableDays,
             message: availableDays.length > 0 ?
               `Selected Dr. ${selectedDoctor.doctor_name} (${selectedDoctor.specialty_name}) at ${selectedDoctor.hospital_name}. Available days: ${availableDays.length}` :
-              "Doctor selected but no available days found"
+              `Doctor selected but no available days found. This may be because clinic_id is ${selectedDoctor.clinic_id}. Please try another doctor.`
           }, null, 2)
         }],
       };
