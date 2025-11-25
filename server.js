@@ -189,54 +189,31 @@ server.registerTool(
       if (cached && (nowTs - cached.timestamp) < DAYS_CACHE_TTL_MS) {
         availableDays = cached.availableDays;
       } else {
-        const tryFetchDays = async (clinicId, timeoutMs) => {
-          try {
-            // Get today's date in DD/MM/YYYY format
-            const today = new Date();
-            const fromDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+        // Get today's date in DD/MM/YYYY format
+        const today = new Date();
+        const fromDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
 
-            const resp = await fetchWithTimeout(
-              `https://salemuatapi.alsalamhosp.com:446/get_doctor_available_days?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${clinicId}&SCHEDULE_DAYS_ONLY=1&Web_FromDate=${fromDate}&mobileapp_whatsapp=2`,
-              {},
-              timeoutMs
-            );
-            const data = await resp.json();
-            return data;
-          } catch (e) {
-            return { error: e.message };
+        try {
+          const resp = await fetchWithTimeout(
+            `https://salemuatapi.alsalamhosp.com:446/get_doctor_available_days?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${selectedDoctor.clinic_id}&SCHEDULE_DAYS_ONLY=1&Web_FromDate=${fromDate}&mobileapp_whatsapp=2`,
+            {},
+            5000 // 5 second timeout
+          );
+          const daysData = await resp.json();
+
+          if (daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW) {
+            // Use all days returned by the API (API already filters out past dates)
+            availableDays = Array.isArray(daysData.Root.DOC_DAYS.DOC_DAYS_ROW)
+              ? daysData.Root.DOC_DAYS.DOC_DAYS_ROW
+              : [daysData.Root.DOC_DAYS.DOC_DAYS_ROW];
+
+            // Cache result
+            daysCache.set(cacheKey, { timestamp: Date.now(), availableDays });
           }
-        };
-
-        // Use clinic_id from search results as the primary clinic ID (this is the correct approach!)
-        const primaryTimeout = 12000; // 12s
-        let daysData = await tryFetchDays(selectedDoctor.clinic_id, primaryTimeout);
-
-        // Only use fallbacks if clinic_id didn't work
-        if (!(daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW)) {
-          // Try specialty_id as fallback
-          daysData = await tryFetchDays(selectedDoctor.specialty_id, 8000);
-        }
-
-        // Last resort: try common clinic IDs
-        if (!(daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW)) {
-          const fallbackClinicIds = [1, 2, 3];
-          for (const fallbackId of fallbackClinicIds) {
-            const fbData = await tryFetchDays(fallbackId, 7000);
-            if (fbData.Root && fbData.Root.DOC_DAYS && fbData.Root.DOC_DAYS.DOC_DAYS_ROW) {
-              daysData = fbData;
-              break;
-            }
-          }
-        }
-
-        if (daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW) {
-          // Use all days returned by the API (API already filters out past dates)
-          availableDays = Array.isArray(daysData.Root.DOC_DAYS.DOC_DAYS_ROW)
-            ? daysData.Root.DOC_DAYS.DOC_DAYS_ROW
-            : [daysData.Root.DOC_DAYS.DOC_DAYS_ROW];
-
-          // Cache result
-          daysCache.set(cacheKey, { timestamp: Date.now(), availableDays });
+        } catch (error) {
+          console.error(`Error fetching available days: ${error.message}`);
+          // Return empty array if API fails
+          availableDays = [];
         }
       }
 
@@ -257,7 +234,7 @@ server.registerTool(
             available_days: availableDays,
             message: availableDays.length > 0 ?
               `Selected Dr. ${selectedDoctor.doctor_name} (${selectedDoctor.specialty_name}) at ${selectedDoctor.hospital_name}. Available days: ${availableDays.length}` :
-              "Doctor selected but no available days in the next 2 weeks"
+              "Doctor selected but no available days found"
           }, null, 2)
         }],
       };
