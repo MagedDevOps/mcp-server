@@ -144,7 +144,7 @@ server.registerTool(
   }
 );
 
-// Helper tool to select a specific doctor from multiple results
+// Tool: select_doctor_from_list - FIXED VERSION
 server.registerTool(
   "select_doctor_from_list",
   {
@@ -152,13 +152,13 @@ server.registerTool(
     inputSchema: {
       doctorIndex: z.number().describe("Index of the selected doctor (1-based)"),
       searchResults: z.array(z.object({
-        doctor_id: z.string(),
+        doctor_id: z.string().or(z.number()).transform(String), // Accept both string and number, convert to string
         doctor_name: z.string(),
-        specialty_id: z.string(),
+        specialty_id: z.string().or(z.number()).transform(String), // Accept both string and number, convert to string
         specialty_name: z.string(),
-        hospital_id: z.string(),
+        hospital_id: z.string().or(z.number()).transform(String), // Accept both string and number, convert to string
         hospital_name: z.string(),
-        clinic_id: z.string().describe("Clinic ID from search results - REQUIRED for getting available days")
+        clinic_id: z.string().or(z.number()).transform(String).describe("Clinic ID from search results - REQUIRED for getting available days") // Accept both string and number, convert to string
       })).describe("Array of doctors from search results")
     },
   },
