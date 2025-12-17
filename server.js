@@ -475,33 +475,66 @@ server.registerTool(
 // SSE and Server setup
 const transports = {};
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    server: 'AlSalamHospitalNewMCP',
+    version: '1.0.0',
+    endpoints: {
+      mcp: '/mcp (SSE endpoint for MCP connection)',
+      messages: '/messages (POST endpoint for MCP messages)',
+      health: '/health (Health check endpoint)'
+    },
+    status: 'running'
+  });
+});
+
 app.get('/mcp', async (req, res) => {
   try {
+    // Set SSE headers explicitly
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable buffering for nginx/proxies
+
     const transport = new SSEServerTransport('/messages', res);
     const sessionId = transport.sessionId;
 
     if (transports[sessionId]) {
       try {
         await transports[sessionId].close();
-      } catch (e) { }
+      } catch (e) {
+        console.error('Error closing existing transport:', e);
+      }
       delete transports[sessionId];
     }
 
     transports[sessionId] = transport;
-    transport.onclose = () => delete transports[sessionId];
+    transport.onclose = () => {
+      console.log(`Transport closed for session: ${sessionId}`);
+      delete transports[sessionId];
+    };
 
+    console.log(`Connecting MCP server for session: ${sessionId}`);
     await server.connect(transport);
   } catch (error) {
-    if (!res.headersSent) res.status(500).send('Error establishing SSE stream');
+    console.error('Error establishing SSE stream:', error);
+    if (!res.headersSent) {
+      res.status(500).send('Error establishing SSE stream: ' + error.message);
+    }
   }
 });
 
 app.post('/messages', async (req, res) => {
   const sessionId = req.query.sessionId;
+  console.log(`Received message for session: ${sessionId}`);
+
   if (!sessionId || !transports[sessionId]) {
+    console.error(`Session not found: ${sessionId}`);
     res.status(404).send('Session not found');
     return;
   }
+
   await transports[sessionId].handlePostMessage(req, res, req.body);
 });
 
