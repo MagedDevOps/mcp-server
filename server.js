@@ -213,20 +213,16 @@ server.registerTool(
       if (cached && (nowTs - cached.timestamp) < DAYS_CACHE_TTL_MS) {
         availableDays = cached.availableDays;
       } else {
-        // Get today's date in DD/MM/YYYY format
-        const today = new Date();
-        const fromDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
-
         try {
           const resp = await fetchWithTimeout(
-            `https://salemuatapi.alsalamhosp.com:446/get_doctor_available_days?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${selectedDoctor.clinic_id}&SCHEDULE_DAYS_ONLY=1&Web_FromDate=${fromDate}&mobileapp_whatsapp=2`,
+            `https://salemuatapi.alsalamhosp.com:446/get_doctor_available_days?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${selectedDoctor.clinic_id}&SCHEDULE_DAYS_ONLY=1&mobileapp_whatsapp=2`,
             {},
             5000 // 5 second timeout
           );
           const daysData = await resp.json();
 
           if (daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW) {
-            // Use all days returned by the API (API already filters out past dates)
+            // API automatically filters dates from current day onwards
             availableDays = Array.isArray(daysData.Root.DOC_DAYS.DOC_DAYS_ROW)
               ? daysData.Root.DOC_DAYS.DOC_DAYS_ROW
               : [daysData.Root.DOC_DAYS.DOC_DAYS_ROW];
