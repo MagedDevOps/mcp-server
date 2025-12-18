@@ -79,6 +79,31 @@ server.registerTool(
   }
 );
 
+// Tool: get_doctor_bio
+server.registerTool(
+  "get_doctor_bio",
+  {
+    description: "Get detailed biography and specialization information for a specific doctor. Use this ONLY when the user explicitly asks for more information about a doctor after searching.",
+    inputSchema: {
+      doctorId: z.string().describe("Doctor ID from search_individual results"),
+      lang: z.string().optional().default("ar").describe("Language code (ar for Arabic, en for English, default: ar)"),
+    },
+  },
+  async ({ doctorId, lang = "ar" }) => {
+    try {
+      const response = await fetchWithTimeout(`https://salemuatapi.alsalamhosp.com:446/get_doctor_bio?doctorId=${encodeURIComponent(doctorId)}&lang=${lang}`);
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+      };
+    }
+  }
+);
+
 // Tool: get_doc_next_availble_slot
 server.registerTool(
   "get_doc_next_availble_slot",
@@ -546,6 +571,7 @@ app.get('/health', (req, res) => {
     version: '1.0.0',
     tools: [
       'search_individual',
+      'get_doctor_bio',
       'get_doc_next_availble_slot',
       'check_patient_whatsapp',
       'select_doctor_from_list',

@@ -12,7 +12,6 @@ system_message_arabic.md
 Information/
 system_message_english.md
 search_booking_solution.md
-Prompt.md
 # Environment variables
 .env
 .env.local
@@ -72,3 +71,4 @@ package.json
 apprunner.yaml
 server_copy.js
 new_server.js
+prompt.md
