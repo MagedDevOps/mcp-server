@@ -27,8 +27,7 @@ async function fetchWithTimeout(url, options = {}, timeout = REQUEST_TIMEOUT) {
   }
 }
 
-const DAYS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
-const daysCache = new Map(); // key -> { timestamp, availableDays }
+
 
 const app = express();
 const port = process.env.PORT || 3001; // Use 3001 to avoid conflict with server.js
@@ -205,36 +204,26 @@ server.registerTool(
 
       const selectedDoctor = searchResults[doctorIndex - 1];
 
-      // Get available days for the selected doctor with caching, shorter timeout, and fallbacks
+      // Get available days for the selected doctor
       let availableDays = [];
-      const cacheKey = `${selectedDoctor.hospital_id}:${selectedDoctor.doctor_id}:${selectedDoctor.clinic_id}`;
-      const cached = daysCache.get(cacheKey);
-      const nowTs = Date.now();
-      if (cached && (nowTs - cached.timestamp) < DAYS_CACHE_TTL_MS) {
-        availableDays = cached.availableDays;
-      } else {
-        try {
-          const resp = await fetchWithTimeout(
-            `https://salemuatapi.alsalamhosp.com:446/get_doctor_available_days?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${selectedDoctor.clinic_id}&SCHEDULE_DAYS_ONLY=1&mobileapp_whatsapp=2`,
-            {},
-            5000 // 5 second timeout
-          );
-          const daysData = await resp.json();
+      try {
+        const resp = await fetchWithTimeout(
+          `https://salemuatapi.alsalamhosp.com:446/get_doctor_available_days?BRANCH_ID=${selectedDoctor.hospital_id}&DOC_ID=${selectedDoctor.doctor_id}&CLINIC_ID=${selectedDoctor.clinic_id}&SCHEDULE_DAYS_ONLY=1&mobileapp_whatsapp=2`,
+          {},
+          5000 // 5 second timeout
+        );
+        const daysData = await resp.json();
 
-          if (daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW) {
-            // API automatically filters dates from current day onwards
-            availableDays = Array.isArray(daysData.Root.DOC_DAYS.DOC_DAYS_ROW)
-              ? daysData.Root.DOC_DAYS.DOC_DAYS_ROW
-              : [daysData.Root.DOC_DAYS.DOC_DAYS_ROW];
-
-            // Cache result
-            daysCache.set(cacheKey, { timestamp: Date.now(), availableDays });
-          }
-        } catch (error) {
-          console.error(`Error fetching available days: ${error.message}`);
-          // Return empty array if API fails
-          availableDays = [];
+        if (daysData.Root && daysData.Root.DOC_DAYS && daysData.Root.DOC_DAYS.DOC_DAYS_ROW) {
+          // API automatically filters dates from current day onwards
+          availableDays = Array.isArray(daysData.Root.DOC_DAYS.DOC_DAYS_ROW)
+            ? daysData.Root.DOC_DAYS.DOC_DAYS_ROW
+            : [daysData.Root.DOC_DAYS.DOC_DAYS_ROW];
         }
+      } catch (error) {
+        console.error(`Error fetching available days: ${error.message}`);
+        // Return empty array if API fails
+        availableDays = [];
       }
 
       return {
